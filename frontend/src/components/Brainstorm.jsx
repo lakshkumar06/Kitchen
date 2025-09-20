@@ -150,6 +150,95 @@ function Brainstorm({ onComplete, projectData }) {
   const [selectedNiche, setSelectedNiche] = useState(projectData.niche || '');
   const [selectedSubNiche, setSelectedSubNiche] = useState(projectData.subNiche || '');
   const [selectedArea, setSelectedArea] = useState(projectData.specificArea || '');
+  const [showIdeas, setShowIdeas] = useState(false);
+  const [generatedIdeas, setGeneratedIdeas] = useState([]);
+  const [selectedIdea, setSelectedIdea] = useState(null);
+  const [isLoadingIdeas, setIsLoadingIdeas] = useState(false);
+
+  // Static ideas (fallback when backend is not available)
+  const getStaticIdeas = () => {
+    return [
+      {
+        id: 1,
+        title: "AI-Powered Business Management Platform",
+        description: "A comprehensive solution that automates business processes, provides intelligent insights, and streamlines operations across multiple departments.",
+        features: [
+          'Modern, intuitive user interface',
+          'Scalable cloud infrastructure',
+          'Advanced analytics and reporting',
+          'Mobile-responsive design',
+          'Integration capabilities'
+        ]
+      },
+      {
+        id: 2,
+        title: "Smart Data Analytics Dashboard",
+        description: "An intelligent dashboard that processes large datasets, provides real-time insights, and helps make data-driven business decisions.",
+        features: [
+          'Real-time data visualization',
+          'Machine learning insights',
+          'Customizable reports',
+          'API integrations',
+          'Automated alerts'
+        ]
+      },
+      {
+        id: 3,
+        title: "Automated Workflow Management System",
+        description: "A platform that automates complex business workflows, reduces manual tasks, and improves operational efficiency.",
+        features: [
+          'Workflow automation',
+          'Task management',
+          'Team collaboration tools',
+          'Progress tracking',
+          'Notification system'
+        ]
+      },
+      {
+        id: 4,
+        title: "Customer Engagement Platform",
+        description: "A comprehensive platform for managing customer relationships, improving engagement, and driving business growth.",
+        features: [
+          'Customer relationship management',
+          'Communication tools',
+          'Feedback collection',
+          'Analytics and insights',
+          'Multi-channel support'
+        ]
+      }
+    ];
+  };
+
+  // Backend-ready idea generation (with fallback)
+  const generateIdeas = async (niche, subNiche, area) => {
+    try {
+      // TODO: Replace with actual backend API endpoint
+      const response = await fetch('/api/generate-ideas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          niche,
+          subNiche,
+          area,
+          industry: NICHE_DATA[niche]?.name,
+          category: NICHE_DATA[niche]?.subNiches[subNiche]?.name
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.ideas || getStaticIdeas();
+      } else {
+        console.warn('Backend API not available, using static ideas');
+        return getStaticIdeas();
+      }
+    } catch (error) {
+      console.warn('Error fetching ideas from backend:', error);
+      return getStaticIdeas();
+    }
+  };
 
   const handleIdeaSubmit = () => {
     if (idea.trim()) {
@@ -166,25 +255,117 @@ function Brainstorm({ onComplete, projectData }) {
     }
   };
 
-  const handleNicheSelection = () => {
+  const handleNicheSelection = async () => {
     if (selectedNiche && selectedSubNiche && selectedArea) {
-      const formData = {
-        idea: `Build a ${selectedArea.toLowerCase()} solution for ${NICHE_DATA[selectedNiche].name} - ${NICHE_DATA[selectedNiche].subNiches[selectedSubNiche].name}`,
-        niche: selectedNiche,
-        subNiche: selectedSubNiche,
-        specificArea: selectedArea
-      };
+      setIsLoadingIdeas(true);
+      setShowIdeas(true);
       
-      console.log('🎯 Niche Selection:', formData);
-      console.log('📊 Selected Path:', {
-        industry: NICHE_DATA[selectedNiche].name,
-        category: NICHE_DATA[selectedNiche].subNiches[selectedSubNiche].name,
-        focus: selectedArea
-      });
-      
-      onComplete(formData);
+      try {
+        // Generate ideas (backend-ready with fallback)
+        const ideas = await generateIdeas(selectedNiche, selectedSubNiche, selectedArea);
+        setGeneratedIdeas(ideas);
+        
+        console.log('🎯 Generated Ideas:', ideas);
+        console.log('📊 Selected Path:', {
+          industry: NICHE_DATA[selectedNiche].name,
+          category: NICHE_DATA[selectedNiche].subNiches[selectedSubNiche].name,
+          focus: selectedArea
+        });
+      } catch (error) {
+        console.error('Error generating ideas:', error);
+        setGeneratedIdeas(getStaticIdeas());
+      } finally {
+        setIsLoadingIdeas(false);
+      }
     }
   };
+
+  const handleIdeaSelection = (idea) => {
+    setSelectedIdea(idea);
+    const formData = {
+      idea: idea.title,
+      niche: selectedNiche,
+      subNiche: selectedSubNiche,
+      specificArea: selectedArea
+    };
+    
+    console.log('✅ Selected Idea:', formData);
+    onComplete(formData);
+  };
+
+  const renderIdeaSelection = () => (
+    <div className="space-y-8">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-white mb-4">Choose Your Idea!</h2>
+        <p className="text-lg text-[#cccccc] mb-8">
+          Based on your selection, here are some ideas to get you started:
+        </p>
+      </div>
+
+      {isLoadingIdeas ? (
+        <div className="max-w-6xl mx-auto text-center">
+          <div className="space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto"></div>
+            <p className="text-white">Generating ideas...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-6xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {generatedIdeas.map((idea) => (
+              <div
+                key={idea.id}
+                onClick={() => handleIdeaSelection(idea)}
+                className={`p-6 rounded-[15px] border-2 cursor-pointer transition-all transform hover:scale-105 ${
+                  selectedIdea?.id === idea.id
+                    ? 'bg-white text-black border-white'
+                    : 'bg-[#222222] border-[#444444] text-white hover:border-[#555555]'
+                }`}
+              >
+                <div className="space-y-4">
+                  <h3 className="text-xl font-semibold">{idea.title}</h3>
+                  <p className="text-sm opacity-80">{idea.description}</p>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium opacity-90">Key Features:</h4>
+                    <ul className="text-xs space-y-1">
+                      {idea.features.map((feature, index) => (
+                        <li key={index} className="flex items-center">
+                          <span className="w-1.5 h-1.5 bg-current rounded-full mr-2 opacity-60"></span>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <div className="pt-2">
+                    <span className="text-xs font-medium opacity-70">
+                      Click to select this idea
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="text-center">
+        <button
+          onClick={() => {
+            setShowIdeas(false);
+            setSelectedNiche('');
+            setSelectedSubNiche('');
+            setSelectedArea('');
+            setIsLoadingIdeas(false);
+          }}
+          className="px-6 py-2 bg-[#333333] hover:bg-[#444444] text-white rounded-[10px] transition-all"
+        >
+          Back to Selection
+        </button>
+      </div>
+    </div>
+  );
 
   const renderIdeaInput = () => (
     <div className="space-y-6">
@@ -309,7 +490,9 @@ function Brainstorm({ onComplete, projectData }) {
 
   return (
     <div className="max-w-6xl mx-auto">
-      {hasIdea === null ? (
+      {showIdeas ? (
+        renderIdeaSelection()
+      ) : hasIdea === null ? (
         <div className="text-center space-y-16 pt-20">
           <div>
             <h1 className="text-4xl font-medium text-white mb-4">Let's get started!</h1>
