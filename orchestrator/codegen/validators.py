@@ -1,6 +1,6 @@
 import json
 from pydantic import ValidationError
-from orchestrator.models import AppSpec
+from ..models import AppSpec
 
 def validate_spec(text_or_obj):
     try:

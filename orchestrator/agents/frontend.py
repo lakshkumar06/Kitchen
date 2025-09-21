@@ -1,6 +1,8 @@
 from jinja2 import Environment, FileSystemLoader
+from pathlib import Path  
 
-env = Environment(loader=FileSystemLoader("orchestrator/codegen/templates"), trim_blocks=True, lstrip_blocks=True)
+TPL_DIR = Path(__file__).resolve().parents[1] / "codegen" / "templates"
+env = Environment(loader=FileSystemLoader(str(TPL_DIR)), trim_blocks=True, lstrip_blocks=True)
 
 def generate_frontend(spec: dict, workdir):
     files = {}

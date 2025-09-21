@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pipeline import start_build, get_logs, get_result
+from .pipeline import start_build, get_logs, get_result
 
 app = FastAPI(title="AI App Builder")
 
@@ -16,7 +16,7 @@ def build_start(payload: dict):
     payload: { "idea": "Build a task tracker" }
              or { "domain": "Healthcare" } (UI picks an idea separately)
     """
-    job_id = start_build(payload)
+    job_id = start_build(payload, app)
     return {"job_id": job_id, "preview_url": f"/apps/{job_id}/"}
 
 @app.get("/build/{job_id}/logs")
