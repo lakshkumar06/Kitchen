@@ -158,19 +158,29 @@ def gemini_list_items(prompt: str, n=3, exclude=None) -> list:
 CATEGORIES = ["Healthcare", "Art", "Education", "E-commerce"]
 
 def ask_yes_no(q: str) -> bool:
+    """Ask yes/no question with exact flow specification"""
     while True:
-        ans = listen_once(q + " Please say yes or no.").lower()
+        # Speak the question
+        speak(q)
+        print(f"[System]: {q}")
+        
+        # Show listening message
+        print("[System]: Listening (timeout 5 sec)...")
+        
+        # Listen for response
+        ans = listen_once("", max_record_sec=5).lower()
 
         if any(word in ans for word in ["yes", "yeah", "yep", "sure", "correct"]):
             return True
         elif any(word in ans for word in ["no", "nope", "nah"]):
             return False
         else:
-            speak("I'm sorry, I didn't understand. Please say yes or no.")
             print("[System]: No valid response. Asking user to repeat.")
+            # Loop continues and asks the question again
 
 
 def choose_from_list(q: str, options: list, allow_none=False, regenerate_func=None) -> str:
+    """Choose from list with exact flow specification"""
     first_time = True
     while True:  # loop until a valid match
         # Add "None of the above" if enabled
@@ -179,22 +189,35 @@ def choose_from_list(q: str, options: list, allow_none=False, regenerate_func=No
             display_options = options + ["None of the above"]
 
         if first_time:
+            # Speak the question
             speak(q)
             print(f"[System]: {q}")
+            
+            # Speak all options
             for i, opt in enumerate(display_options, 1):
                 msg = f"Option {i}: {opt}"
                 speak(msg)
                 print(msg)
-            ans = listen_once(f"Please say option 1 through option {len(display_options)}.").lower()
+            
+            # Ask for choice
+            speak(f"Please say option 1 through option {len(display_options)}.")
+            print(f"[System]: Please say option 1 through option {len(display_options)}.")
+            
+            # Show listening message
+            print("[System]: Listening (timeout 5 sec)...")
+            
+            # Listen for response
+            ans = listen_once("", max_record_sec=5).lower()
             first_time = False
         else:
-            speak("Could you repeat again? Please say one of the options.")
             print("[System]: Asking user to repeat.")
-            ans = listen_once().lower()
+            speak("Could you repeat again? Please say one of the options.")
+            print("[System]: Listening (timeout 5 sec)...")
+            ans = listen_once("", max_record_sec=5).lower()
 
-        # Match option numbers
+        # Match option numbers - require "Option X" format
         for i, opt in enumerate(display_options, 1):
-            if f"option {i}" in ans or ans.strip() == str(i) or f"number {i}" in ans:
+            if f"option {i}" in ans or ans.strip().lower() == f"option {i}":
                 chosen_opt = opt
                 if allow_none and chosen_opt.lower().startswith("none"):
                     if regenerate_func:
@@ -221,14 +244,88 @@ def choose_from_list(q: str, options: list, allow_none=False, regenerate_func=No
 
 
 def brainstorm_session():
+    """Complete brainstorming session with exact flow specification"""
+    
+    # Step 1: Initial Question
     has_idea = ask_yes_no("Do you already have a website idea?")
+    
     if has_idea:
-        idea = listen_once("Great! Please describe your idea.", max_record_sec=20)
-        speak("Your chosen website idea is: " + idea)
+        # Case B: User says "Yes"
+        speak("Great! Please describe your idea.")
+        print("[System]: Great! Please describe your idea.")
+        print("[System]: Listening (timeout 20 sec)...")
         
+        idea = listen_once("", max_record_sec=20)
+        print(f"[You]: {idea}")
+        
+        # Final confirmation
+        speak("Your chosen website idea is: " + idea)
+        print(f"[System]: Your chosen website idea is: {idea}")
         return
 
+    # Case C: User says "No" - Move to category selection
+    # Use fixed categories list
     category = choose_from_list("Choose a category:", CATEGORIES)
+
+    # Track used subtopics for regeneration
+    used_subtopics = []
+    def regen_subtopics():
+        new_items = gemini_list_items(
+            f"Generate 3 creative subtopics for {category}",
+            3,
+            exclude=used_subtopics
+        )
+        used_subtopics.extend(new_items)
+        return new_items
+
+    # Subtopic Selection with regeneration support
+    subtopics = regen_subtopics()
+    subtopic = choose_from_list("Choose a subtopic:", subtopics, allow_none=True, regenerate_func=regen_subtopics)
+
+    # Track used ideas for regeneration
+    used_ideas = []
+    def regen_ideas():
+        new_items = gemini_list_items(
+            f"Generate 3 website ideas for {subtopic} in {category}",
+            3,
+            exclude=used_ideas
+        )
+        used_ideas.extend(new_items)
+        return new_items
+
+    # Website Idea Selection with regeneration support
+    ideas = regen_ideas()
+    chosen = choose_from_list("Choose a website idea:", ideas, allow_none=True, regenerate_func=regen_ideas)
+
+    # Final Confirmation
+    print("\n=== RESULT ===")
+    print(f"Category: {category}")
+    print(f"Subtopic: {subtopic}")
+    print(f"Website idea: {chosen}")
+    speak("Your chosen website idea is: " + chosen)
+    print(f"[System]: Your chosen website idea is: {chosen}")
+
+
+def brainstorm_with_idea(idea_description):
+    """Handle brainstorming when user already has an idea"""
+    speak("Great! Please describe your idea.")
+    print("[System]: Great! Please describe your idea.")
+    idea = listen_once("", max_record_sec=20)
+    print(f"[You]: {idea}")
+    speak("Your chosen website idea is: " + idea)
+    print(f"[System]: Your chosen website idea is: {idea}")
+    return {
+        "idea": idea,
+        "type": "user_provided"
+    }
+
+
+def brainstorm_without_idea():
+    """Handle brainstorming when user needs help finding an idea"""
+    # Generate dynamic categories using Gemini
+    categories = gemini_list_items("Generate 4 diverse business categories for website ideas", 4)
+    
+    category = choose_from_list("Choose a category:", categories)
 
     # Track used subtopics
     used_subtopics = []
@@ -263,6 +360,29 @@ def brainstorm_session():
     print(f"Subtopic: {subtopic}")
     print(f"Website idea: {chosen}")
     speak("Your chosen website idea is: " + chosen)
+    print(f"[System]: Your chosen website idea is: {chosen}")
+    
+    return {
+        "idea": chosen,
+        "category": category,
+        "subtopic": subtopic,
+        "type": "generated"
+    }
+
+
+def get_dynamic_categories():
+    """Get dynamic categories for frontend display"""
+    return gemini_list_items("Generate 4 diverse business categories for website ideas", 4)
+
+
+def get_dynamic_subtopics(category):
+    """Get dynamic subtopics for a given category"""
+    return gemini_list_items(f"Generate 3 creative subtopics for {category}", 3)
+
+
+def get_dynamic_ideas(category, subtopic):
+    """Get dynamic website ideas for a given category and subtopic"""
+    return gemini_list_items(f"Generate 3 website ideas for {subtopic} in {category}", 3)
 
 
 

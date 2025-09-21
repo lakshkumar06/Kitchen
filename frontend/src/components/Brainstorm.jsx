@@ -165,6 +165,24 @@ function Brainstorm({ onComplete, projectData }) {
   });
   const [animationLevel, setAnimationLevel] = useState(0);
   
+  // Voice interaction state
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceResponse, setVoiceResponse] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  
+  // Voice flow state
+  const [voiceFlowActive, setVoiceFlowActive] = useState(false);
+  const [currentVoiceStep, setCurrentVoiceStep] = useState('');
+  const [voiceFlowData, setVoiceFlowData] = useState({
+    categories: [],
+    subtopics: [],
+    ideas: [],
+    selectedCategory: '',
+    selectedSubtopic: '',
+    selectedIdea: ''
+  });
+  
   // Audio refs
   const mediaRecorderRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -200,7 +218,7 @@ function Brainstorm({ onComplete, projectData }) {
 
   // Audio analysis for blob animation
   useEffect(() => {
-    if (recordingState.isRecording) {
+    if (isListening) {
       navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
         audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
         analyserRef.current = audioContextRef.current.createAnalyser();
@@ -215,7 +233,7 @@ function Brainstorm({ onComplete, projectData }) {
             analyserRef.current.getByteFrequencyData(dataArrayRef.current);
             const volume = dataArrayRef.current.reduce((a, b) => a + b, 0) / dataArrayRef.current.length;
             setAnimationLevel(volume * 1.5);
-            if (recordingState.isRecording) requestAnimationFrame(detectSound);
+            if (isListening) requestAnimationFrame(detectSound);
           }
         };
         detectSound();
@@ -229,7 +247,7 @@ function Brainstorm({ onComplete, projectData }) {
         sourceRef.current = null;
       }
     }
-  }, [recordingState.isRecording]);
+  }, [isListening]);
 
   // Audio recording functions
   const startRecording = async () => {
@@ -285,6 +303,280 @@ function Brainstorm({ onComplete, projectData }) {
       audioUrl: null
     });
     setAnimationLevel(0);
+  };
+
+  // Voice interaction functions
+  const speakText = async (text) => {
+    if (!isVoiceEnabled) return;
+    
+    try {
+      setIsSpeaking(true);
+      const response = await fetch('http://localhost:5000/api/speak', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.audio) {
+          // Convert base64 audio to blob and play
+          const audioBlob = new Blob([Uint8Array.from(atob(data.audio), c => c.charCodeAt(0))], { type: 'audio/wav' });
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          
+          audio.onended = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+          };
+          
+          audio.play();
+        }
+      }
+    } catch (error) {
+      console.error('Error with text-to-speech:', error);
+      setIsSpeaking(false);
+    }
+  };
+
+  const askYesNoQuestion = async (question) => {
+    if (!isVoiceEnabled) return null;
+    
+    while (true) {
+      try {
+        setIsListening(true);
+        await speakText(question + " Please say yes or no.");
+        
+        // Wait for speech to finish before listening
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        const response = await fetch('http://localhost:5000/api/ask-yes-no', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ question })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setVoiceResponse(data.response);
+          setIsListening(false);
+          
+          if (data.is_yes === true) {
+            return true;
+          } else if (data.is_yes === false) {
+            return false;
+          } else {
+            // Invalid response, continue loop
+            console.log("No valid response. Asking user to repeat.");
+            continue;
+          }
+        }
+      } catch (error) {
+        console.error('Error with yes/no question:', error);
+        setIsListening(false);
+        return null;
+      }
+    }
+  };
+
+  const askDescription = async (question, maxSeconds = 20) => {
+    if (!isVoiceEnabled) return '';
+    
+    try {
+      setIsListening(true);
+      await speakText(question);
+      
+      // Wait for speech to finish before listening
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      const response = await fetch('http://localhost:5000/api/ask-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question, max_seconds: maxSeconds })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setVoiceResponse(data.response);
+        setIsListening(false);
+        return data.response;
+      }
+    } catch (error) {
+      console.error('Error with description question:', error);
+      setIsListening(false);
+    }
+    return '';
+  };
+
+  const askChoiceFromList = async (question, options, allowNone = false, regenerateFunc = null) => {
+    if (!isVoiceEnabled) return null;
+    
+    let currentOptions = [...options];
+    let firstTime = true;
+    
+    while (true) {
+      try {
+        // Add "None of the above" if enabled
+        const displayOptions = allowNone ? [...currentOptions, "None of the above"] : currentOptions;
+        
+        if (firstTime) {
+          await speakText(question);
+          console.log(`[System]: ${question}`);
+          
+          // Speak each option
+          for (let i = 0; i < displayOptions.length; i++) {
+            const optionText = `Option ${i + 1}: ${displayOptions[i]}`;
+            await speakText(optionText);
+            console.log(optionText);
+          }
+          
+          await speakText(`Please say option 1 through option ${displayOptions.length}.`);
+          console.log(`[System]: Please say option 1 through option ${displayOptions.length}.`);
+          firstTime = false;
+        } else {
+          console.log("[System]: Asking user to repeat.");
+          await speakText("Could you repeat again? Please say one of the options.");
+        }
+        
+        setIsListening(true);
+        
+        // Wait for speech to finish before listening
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Get actual voice input using the backend
+        const voiceResponse = await new Promise(async (resolve) => {
+          try {
+            const response = await fetch('http://localhost:5000/api/ask-description', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ question: '', max_seconds: 5 })
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              resolve(data.response || '');
+            } else {
+              resolve('');
+            }
+          } catch (error) {
+            console.error('Error getting voice input:', error);
+            resolve('');
+          }
+        });
+        
+        setVoiceResponse(voiceResponse);
+        setIsListening(false);
+        
+        // Parse the response
+        const response = voiceResponse.toLowerCase();
+        
+        // Check for option numbers
+        for (let i = 0; i < displayOptions.length; i++) {
+          if (response.includes(`option ${i + 1}`) || response.trim() === `${i + 1}` || response.includes(`number ${i + 1}`)) {
+            const chosenOption = displayOptions[i];
+            
+            if (allowNone && chosenOption.toLowerCase().startsWith("none")) {
+              if (regenerateFunc) {
+                // Regenerate new options
+                const newOptions = await regenerateFunc();
+                currentOptions = newOptions;
+                firstTime = true;
+                break;
+              }
+            }
+            
+            return chosenOption;
+          }
+        }
+        
+        // If no valid option found, continue the loop
+        console.log("Invalid response, asking again...");
+        
+      } catch (error) {
+        console.error('Error with choice question:', error);
+        setIsListening(false);
+        return null;
+      }
+    }
+  };
+
+  // Dynamic content functions
+  const getDynamicCategories = async () => {
+    try {
+      const response = await fetch('http://localhost:5000/api/get-categories');
+      if (response.ok) {
+        const data = await response.json();
+        return data.categories;
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+    return ['Healthcare', 'Art', 'Education', 'E-commerce']; // Fallback
+  };
+
+  const getDynamicSubtopics = async (category) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/get-subtopics', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.subtopics;
+      }
+    } catch (error) {
+      console.error('Error fetching subtopics:', error);
+    }
+    return []; // Fallback
+  };
+
+  const getDynamicIdeas = async (category, subtopic) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/get-ideas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category, subtopic })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.ideas;
+      }
+    } catch (error) {
+      console.error('Error fetching ideas:', error);
+    }
+    return []; // Fallback
+  };
+
+  const processUserIdea = async (idea) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/process-idea', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ idea })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.result;
+      }
+    } catch (error) {
+      console.error('Error processing idea:', error);
+    }
+    return null;
   };
 
   // Static ideas (fallback when backend is not available)
@@ -395,14 +687,20 @@ function Brainstorm({ onComplete, projectData }) {
       setShowIdeas(true);
       
       try {
-        // Generate ideas (backend-ready with fallback)
-        const ideas = await generateIdeas(selectedNiche, selectedSubNiche, selectedArea);
-        setGeneratedIdeas(ideas);
+        // Use dynamic ideas generation
+        const ideas = await getDynamicIdeas(selectedNiche, selectedSubNiche);
+        if (ideas.length > 0) {
+          setGeneratedIdeas(ideas);
+        } else {
+          // Fallback to static ideas
+          const fallbackIdeas = await generateIdeas(selectedNiche, selectedSubNiche, selectedArea);
+          setGeneratedIdeas(fallbackIdeas);
+        }
         
         console.log('🎯 Generated Ideas:', ideas);
         console.log('📊 Selected Path:', {
-          industry: NICHE_DATA[selectedNiche].name,
-          category: NICHE_DATA[selectedNiche].subNiches[selectedSubNiche].name,
+          industry: selectedNiche,
+          category: selectedSubNiche,
           focus: selectedArea
         });
       } catch (error) {
@@ -505,11 +803,24 @@ function Brainstorm({ onComplete, projectData }) {
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-3xl font-medium text-white mb-4">Do you have an idea?</h2>
+        {isVoiceEnabled && (
+          <div className="mb-4">
+            {isSpeaking && (
+              <div className="text-lg text-blue-400 mb-2">🎤 Speaking...</div>
+            )}
+            {isListening && (
+              <div className="text-lg text-green-400 mb-2">👂 Listening...</div>
+            )}
+            {voiceResponse && (
+              <div className="text-lg text-yellow-400 mb-2">You said: "{voiceResponse}"</div>
+            )}
+          </div>
+        )}
       </div>
       
       <div className="max-w-2xl mx-auto">
         {/* Audio Mode Toggle */}
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center space-x-4 mb-4">
           <button
             onClick={() => {
               setIsAudioMode(!isAudioMode);
@@ -525,6 +836,14 @@ function Brainstorm({ onComplete, projectData }) {
           >
             Audio Mode
           </button>
+          {!isVoiceEnabled && (
+            <button
+              onClick={() => setIsVoiceEnabled(true)}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-[10px] transition-all"
+            >
+              🎤 Enable Voice
+            </button>
+          )}
         </div>
 
         {isAudioMode ? (
@@ -621,6 +940,19 @@ function Brainstorm({ onComplete, projectData }) {
     <div className="space-y-8">
       <div className="text-center">
         <h2 className="text-3xl font-bold text-white mb-4">Let's find your niche!</h2>
+        {isVoiceEnabled && (
+          <div className="mb-4">
+            {isSpeaking && (
+              <div className="text-lg text-blue-400 mb-2">🎤 Speaking...</div>
+            )}
+            {isListening && (
+              <div className="text-lg text-green-400 mb-2">👂 Listening...</div>
+            )}
+            {voiceResponse && (
+              <div className="text-lg text-yellow-400 mb-2">You said: "{voiceResponse}"</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Step 1: Select Main Niche */}
@@ -630,10 +962,28 @@ function Brainstorm({ onComplete, projectData }) {
           {Object.entries(NICHE_DATA).map(([key, niche]) => (
             <button
               key={key}
-              onClick={() => {
+              onClick={async () => {
                 setSelectedNiche(key);
                 setSelectedSubNiche('');
                 setSelectedArea('');
+                
+                // Load dynamic subtopics for this category
+                if (isVoiceEnabled) {
+                  const subtopics = await getDynamicSubtopics(niche.name);
+                  if (subtopics.length > 0) {
+                    // Update the NICHE_DATA with dynamic subtopics
+                    const updatedNicheData = { ...NICHE_DATA };
+                    updatedNicheData[key].subNiches = {};
+                    subtopics.forEach((subtopic, index) => {
+                      const subKey = subtopic.toLowerCase().replace(/[^a-z0-9]/g, '_');
+                      updatedNicheData[key].subNiches[subKey] = {
+                        name: subtopic,
+                        areas: [] // Will be populated when user selects
+                      };
+                    });
+                    console.log('Dynamic subtopics loaded for', niche.name, ':', subtopics);
+                  }
+                }
               }}
               className={`p-4 rounded-[10px] border transition-all ${
                 selectedNiche === key
@@ -642,7 +992,6 @@ function Brainstorm({ onComplete, projectData }) {
               }`}
             >
               <div className="text-center">
-
                 <div className="">{niche.name}</div>
               </div>
             </button>
@@ -658,9 +1007,32 @@ function Brainstorm({ onComplete, projectData }) {
             {Object.entries(NICHE_DATA[selectedNiche].subNiches).map(([key, subNiche]) => (
               <button
                 key={key}
-                onClick={() => {
+                onClick={async () => {
                   setSelectedSubNiche(key);
-                  setSelectedArea('');
+                  setSelectedArea(''); // Skip the specific area step
+                  
+                  // Automatically proceed to idea generation
+                  setIsLoadingIdeas(true);
+                  setShowIdeas(true);
+                  
+                  try {
+                    // Use dynamic ideas generation
+                    const ideas = await getDynamicIdeas(NICHE_DATA[selectedNiche].name, subNiche.name);
+                    if (ideas.length > 0) {
+                      setGeneratedIdeas(ideas);
+                    } else {
+                      // Fallback to static ideas
+                      const fallbackIdeas = await generateIdeas(selectedNiche, key, 'General');
+                      setGeneratedIdeas(fallbackIdeas);
+                    }
+                    
+                    console.log('🎯 Generated Ideas:', ideas);
+                  } catch (error) {
+                    console.error('Error generating ideas:', error);
+                    setGeneratedIdeas(getStaticIdeas());
+                  } finally {
+                    setIsLoadingIdeas(false);
+                  }
                 }}
                 className={`p-4 rounded-[10px] border transition-all ${
                   selectedSubNiche === key
@@ -674,42 +1046,452 @@ function Brainstorm({ onComplete, projectData }) {
           </div>
         </div>
       )}
-
-      {/* Step 3: Select Specific Area */}
-      {selectedSubNiche && (
-        <div className="max-w-4xl mx-auto">
-          <h3 className="text-xl  text-white mb-4">3. What specific problem do you want to solve?</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {NICHE_DATA[selectedNiche].subNiches[selectedSubNiche].areas.map((area) => (
-              <button
-                key={area}
-                onClick={() => setSelectedArea(area)}
-                className={`p-3 rounded-[10px] border transition-all ${
-                  selectedArea === area
-                    ? 'bg-white text-[#121212] border-white'
-                    : 'bg-transparent border-white text-white hover:bg-white hover:text-[#121212]'
-                }`}
-              >
-                <div className="text-sm font-medium">{area}</div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Continue Button */}
-      {selectedArea && (
-        <div className="flex justify-center">
-          <button
-            onClick={handleNicheSelection}
-            className="px-8 py-3 bg-white hover:bg-[#f0f0f0] text-[#121212] rounded-[10px] transition-all transform hover:scale-105"
-          >
-            Continue to Code
-          </button>
-        </div>
-      )}
     </div>
   );
+
+  // Complete voice flow implementation
+  const startCompleteVoiceFlow = async () => {
+    setIsVoiceEnabled(true);
+    setVoiceFlowActive(true);
+    setCurrentVoiceStep('initial_question');
+    
+    try {
+      // Call the complete voice flow endpoint
+      const response = await fetch('http://localhost:5000/api/complete-voice-flow', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        if (data.flow_complete) {
+          console.log('✅ Voice flow completed successfully!');
+          console.log('Check the backend console for the complete conversation and results.');
+          
+          // Since the backend handles the complete flow, we'll just show a success message
+          // The user can check the backend console for the results
+          alert('Voice flow completed! Check the backend console for results.');
+          
+          // For now, we'll complete with a generic success
+          const formData = {
+            idea: 'Voice flow completed - check backend console',
+            niche: 'Voice Generated',
+            subNiche: '',
+            specificArea: ''
+          };
+          
+          onComplete(formData);
+        }
+      } else {
+        console.error('Error in voice flow:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error in voice flow:', error);
+    } finally {
+      setVoiceFlowActive(false);
+      setCurrentVoiceStep('');
+    }
+  };
+
+  // Ask yes/no with retry logic
+  const askYesNoWithRetry = async (question) => {
+    while (true) {
+      setCurrentVoiceStep('listening_yes_no');
+      setListeningState(true);
+      
+      try {
+        const response = await fetch('http://localhost:5000/api/ask-yes-no', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ question })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setVoiceResponse(data.response);
+          setListeningState(false);
+          
+          if (data.is_yes === true) {
+            return true;
+          } else if (data.is_yes === false) {
+            return false;
+          } else {
+            console.log("[System]: No valid response. Asking user to repeat.");
+            // Continue loop to ask again
+          }
+        }
+      } catch (error) {
+        console.error('Error with yes/no question:', error);
+        setListeningState(false);
+        return null;
+      }
+    }
+  };
+
+  // Ask description with retry logic
+  const askDescriptionWithRetry = async (question) => {
+    setCurrentVoiceStep('listening_description');
+    setListeningState(true);
+    
+    try {
+      const response = await fetch('http://localhost:5000/api/ask-description', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question, max_seconds: 20 })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setVoiceResponse(data.response);
+        setListeningState(false);
+        return data.response;
+      }
+    } catch (error) {
+      console.error('Error with description question:', error);
+      setListeningState(false);
+    }
+    
+    return '';
+  };
+
+  // Set listening state for visual feedback
+  const setListeningState = (isListening) => {
+    setIsListening(isListening);
+    if (isListening) {
+      setAnimationLevel(0); // Reset animation
+    }
+  };
+
+  // Complete category selection flow
+  const handleCompleteCategoryFlow = async () => {
+    try {
+      // Get dynamic categories
+      const categories = await getDynamicCategories();
+      if (categories.length === 0) {
+        console.error('No categories generated');
+        return;
+      }
+      
+      setVoiceFlowData(prev => ({ ...prev, categories }));
+      
+      // Ask user to choose category
+      const selectedCategory = await askChoiceWithRetry("Choose a category:", categories);
+      if (!selectedCategory) return;
+      
+      setVoiceFlowData(prev => ({ ...prev, selectedCategory }));
+      console.log(`Selected category: ${selectedCategory}`);
+      
+      // Get subtopics
+      const subtopics = await getDynamicSubtopics(selectedCategory);
+      if (subtopics.length === 0) return;
+      
+      setVoiceFlowData(prev => ({ ...prev, subtopics }));
+      
+      // Ask user to choose subtopic with regeneration
+      const selectedSubtopic = await askChoiceWithRetryAndRegen(
+        "Choose a subtopic:", 
+        subtopics, 
+        true, 
+        () => getDynamicSubtopics(selectedCategory)
+      );
+      if (!selectedSubtopic) return;
+      
+      setVoiceFlowData(prev => ({ ...prev, selectedSubtopic }));
+      console.log(`Selected subtopic: ${selectedSubtopic}`);
+      
+      // Get ideas
+      const ideas = await getDynamicIdeas(selectedCategory, selectedSubtopic);
+      if (ideas.length === 0) return;
+      
+      setVoiceFlowData(prev => ({ ...prev, ideas }));
+      
+      // Ask user to choose idea with regeneration
+      const selectedIdea = await askChoiceWithRetryAndRegen(
+        "Choose a website idea:", 
+        ideas, 
+        true, 
+        () => getDynamicIdeas(selectedCategory, selectedSubtopic)
+      );
+      if (!selectedIdea) return;
+      
+      setVoiceFlowData(prev => ({ ...prev, selectedIdea }));
+      console.log(`Selected idea: ${selectedIdea}`);
+      
+      // Display final result
+      console.log("\n=== RESULT ===");
+      console.log(`Category: ${selectedCategory}`);
+      console.log(`Subtopic: ${selectedSubtopic}`);
+      console.log(`Website idea: ${selectedIdea}`);
+      
+      // Speak final result
+      await speakText("Your chosen website idea is: " + selectedIdea);
+      console.log(`[System]: Your chosen website idea is: ${selectedIdea}`);
+      
+      // Complete the flow
+      const formData = {
+        idea: selectedIdea,
+        niche: selectedCategory,
+        subNiche: selectedSubtopic,
+        specificArea: 'General'
+      };
+      
+      onComplete(formData);
+      
+    } catch (error) {
+      console.error('Error in category flow:', error);
+    }
+  };
+
+  // Ask choice with retry logic
+  const askChoiceWithRetry = async (question, options, allowNone = false, regenerateFunc = null) => {
+    let currentOptions = [...options];
+    let firstTime = true;
+    
+    while (true) {
+      setCurrentVoiceStep('listening_choice');
+      setListeningState(true);
+      
+      try {
+        const response = await fetch('http://localhost:5000/api/ask-choice', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ 
+            question: firstTime ? question : "Could you repeat again? Please say one of the options.",
+            options: currentOptions,
+            allow_none: allowNone
+          })
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          setVoiceResponse(data.response);
+          setListeningState(false);
+          
+          if (data.is_valid) {
+            const chosenOption = data.chosen_option;
+            
+            if (allowNone && data.is_none) {
+              if (regenerateFunc) {
+                // Regenerate new options
+                const newOptions = await regenerateFunc();
+                currentOptions = newOptions;
+                firstTime = true;
+                continue;
+              }
+            }
+            
+            return chosenOption;
+          } else {
+            // Invalid response, continue loop
+            firstTime = false;
+            continue;
+          }
+        }
+      } catch (error) {
+        console.error('Error with choice question:', error);
+        setListeningState(false);
+        return null;
+      }
+    }
+  };
+
+  // Ask choice with retry and regeneration
+  const askChoiceWithRetryAndRegen = async (question, options, allowNone = false, regenerateFunc = null) => {
+    return askChoiceWithRetry(question, options, allowNone, regenerateFunc);
+  };
+
+  // Handle dynamic category selection with voice
+  const handleDynamicCategorySelection = async () => {
+    try {
+      // Get dynamic categories
+      const categories = await getDynamicCategories();
+      if (categories.length === 0) {
+        console.error('No categories generated');
+        return;
+      }
+      
+      // Ask user to choose a category
+      const selectedCategory = await askChoiceFromList("Choose a category:", categories);
+      if (!selectedCategory) {
+        console.error('No category selected');
+        return;
+      }
+      
+      console.log(`Selected category: ${selectedCategory}`);
+      
+      // Get dynamic subtopics for the selected category
+      const subtopics = await getDynamicSubtopics(selectedCategory);
+      if (subtopics.length === 0) {
+        console.error('No subtopics generated');
+        return;
+      }
+      
+      // Track used subtopics for regeneration
+      let usedSubtopics = [...subtopics];
+      
+      const regenerateSubtopics = async () => {
+        const newSubtopics = await getDynamicSubtopics(selectedCategory);
+        usedSubtopics = [...usedSubtopics, ...newSubtopics];
+        return newSubtopics;
+      };
+      
+      // Ask user to choose a subtopic
+      const selectedSubtopic = await askChoiceFromList("Choose a subtopic:", subtopics, true, regenerateSubtopics);
+      if (!selectedSubtopic) {
+        console.error('No subtopic selected');
+        return;
+      }
+      
+      console.log(`Selected subtopic: ${selectedSubtopic}`);
+      
+      // Get dynamic ideas for the selected category and subtopic
+      const ideas = await getDynamicIdeas(selectedCategory, selectedSubtopic);
+      if (ideas.length === 0) {
+        console.error('No ideas generated');
+        return;
+      }
+      
+      // Track used ideas for regeneration
+      let usedIdeas = [...ideas];
+      
+      const regenerateIdeas = async () => {
+        const newIdeas = await getDynamicIdeas(selectedCategory, selectedSubtopic);
+        usedIdeas = [...usedIdeas, ...newIdeas];
+        return newIdeas;
+      };
+      
+      // Ask user to choose an idea
+      const selectedIdea = await askChoiceFromList("Choose a website idea:", ideas, true, regenerateIdeas);
+      if (!selectedIdea) {
+        console.error('No idea selected');
+        return;
+      }
+      
+      console.log(`Selected idea: ${selectedIdea}`);
+      
+      // Display final result
+      console.log("\n=== RESULT ===");
+      console.log(`Category: ${selectedCategory}`);
+      console.log(`Subtopic: ${selectedSubtopic}`);
+      console.log(`Website idea: ${selectedIdea}`);
+      
+      // Speak the final result
+      await speakText("Your chosen website idea is: " + selectedIdea);
+      console.log(`[System]: Your chosen website idea is: ${selectedIdea}`);
+      
+      // Update the UI state
+      setSelectedNiche(selectedCategory);
+      setSelectedSubNiche(selectedSubtopic);
+      setSelectedArea('General');
+      setIdea(selectedIdea);
+      
+      // Complete the flow
+      const formData = {
+        idea: selectedIdea,
+        niche: selectedCategory,
+        subNiche: selectedSubtopic,
+        specificArea: 'General'
+      };
+      
+      console.log('✅ Voice flow completed:', formData);
+      onComplete(formData);
+      
+    } catch (error) {
+      console.error('Error in dynamic category selection:', error);
+    }
+  };
+
+  // Voice bubble component
+  const renderVoiceBubble = () => {
+    if (!voiceFlowActive) return null;
+    
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-[#121212] rounded-[20px] p-8 max-w-2xl mx-4">
+          <div className="text-center space-y-6">
+            <h2 className="text-2xl font-bold text-white mb-6">Voice Chat Active</h2>
+            
+            {/* Voice Bubble */}
+            <div className="flex justify-center mb-6">
+              <svg className='h-[200px] w-[200px] overflow-visible' viewBox="0 0 128 128">
+                <defs>
+                  <linearGradient id="voiceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#FF6600" />
+                    <stop offset="100%" stopColor="#FFCC00" />
+                  </linearGradient>
+                </defs>
+                <path 
+                  d={generateBlobPath(isListening ? animationLevel : 0)} 
+                  fill="url(#voiceGradient)" 
+                />
+              </svg>
+            </div>
+            
+            {/* Status Messages */}
+            <div className="space-y-3">
+              {isSpeaking && (
+                <div className="text-lg text-blue-400">🎤 System is speaking...</div>
+              )}
+              {isListening && (
+                <div className="text-lg text-green-400">👂 Listening for your response...</div>
+              )}
+              {!isSpeaking && !isListening && (
+                <div className="text-lg text-yellow-400">⏳ Processing...</div>
+              )}
+            </div>
+            
+            {/* Current Step */}
+            {currentVoiceStep && (
+              <div className="text-sm text-gray-400">
+                {currentVoiceStep === 'initial_question' && 'Starting voice conversation...'}
+                {currentVoiceStep === 'listening_yes_no' && 'Waiting for yes/no response...'}
+                {currentVoiceStep === 'description' && 'Getting your idea description...'}
+                {currentVoiceStep === 'listening_description' && 'Listening to your description...'}
+                {currentVoiceStep === 'listening_choice' && 'Waiting for your choice...'}
+              </div>
+            )}
+            
+            {/* Voice Flow Status */}
+            <div className="text-sm text-gray-400">
+              Complete voice flow is running in the background.
+              <br />
+              Follow the voice prompts to complete the conversation.
+            </div>
+            
+            {/* Voice Response Display */}
+            {voiceResponse && (
+              <div className="bg-[#222222] rounded-[10px] p-4">
+                <div className="text-sm text-gray-400 mb-2">You said:</div>
+                <div className="text-white">"{voiceResponse}"</div>
+              </div>
+            )}
+            
+            {/* Stop Button */}
+            <button
+              onClick={() => {
+                setVoiceFlowActive(false);
+                setIsVoiceEnabled(false);
+                setCurrentVoiceStep('');
+              }}
+              className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-[10px] transition-all"
+            >
+              Stop Voice Chat
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -722,6 +1504,13 @@ function Brainstorm({ onComplete, projectData }) {
           </div>
           
           <div className="flex justify-center space-x-6">
+            <button
+              onClick={startCompleteVoiceFlow}
+              disabled={voiceFlowActive}
+              className="px-8 py-4 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-[10px] transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+            >
+              {voiceFlowActive ? 'Voice Chat Active...' : '🎤 Start Complete Voice Flow'}
+            </button>
             <button
               onClick={() => setHasIdea(true)}
               className="px-8 py-4 bg-white hover:bg-[#f0f0f0] text-[#121212] rounded-[10px] transition-all transform hover:scale-105"
@@ -741,6 +1530,9 @@ function Brainstorm({ onComplete, projectData }) {
       ) : (
         renderNicheQuestions()
       )}
+      
+      {/* Voice Bubble Overlay */}
+      {renderVoiceBubble()}
     </div>
   );
 }
