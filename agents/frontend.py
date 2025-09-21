@@ -4,7 +4,7 @@ import os
 from orchestrator.models import FrontendPrompt
 
 
-async def generate_frontend_code(frontend_prompt: FrontendPrompt) -> dict:
+async def generate_frontend(frontend_prompt: FrontendPrompt) -> None:
     """Generate frontend code from frontend prompt using LLM"""
     os.makedirs("output/frontend", exist_ok=True)
     
@@ -55,9 +55,3 @@ async def generate_frontend_code(frontend_prompt: FrontendPrompt) -> dict:
     # Write file
     with open("output/frontend/index.html", "w") as f:
         f.write(html_code)
-    
-    return {
-        "success": True,
-        "file_path": "output/frontend/index.html",
-        "html_code": html_code
-    }

@@ -71,90 +71,28 @@ Return ONLY the JSON response matching the exact structure above.
 
 async def generate_manager_output(user_prompt: str) -> ManagerOutput:
     """Generate manager output with backend and frontend prompts"""
-    try:
-        full_prompt = f"{SYSTEM_PROMPT}\n\nUser Request: {user_prompt}"
+    full_prompt = f"{SYSTEM_PROMPT}\n\nUser Request: {user_prompt}"
 
-        response = gemini_client.generate(full_prompt)
-        
-        # Handle potential API response issues
-        if not response:
-            raise ValueError("Empty response from Gemini API")
-            
-        data = json.loads(response)
+    response = gemini_client.generate(full_prompt)
+    data = json.loads(response)
 
-        project_type = data.get("project_type", "frontend_only")  # Default to frontend only for simplicity
-        
-        # Handle frontend prompt with proper defaults
-        frontend_data = data.get("frontend_engineer_prompt", {})
-        if frontend_data.get("api_integration_requirements") is None:
-            frontend_data["api_integration_requirements"] = []
-        
-        # Ensure all required fields are present
-        frontend_data.setdefault("role", "Frontend Engineer - Client-side Development Specialist")
-        frontend_data.setdefault("domain_description", "Responsible for client-side development, UI implementation, API consumption, user experience flows, and browser-side functionality")
-        frontend_data.setdefault("project_context", user_prompt)
-        frontend_data.setdefault("required_technologies", {
-            "markup": "HTML5",
-            "styling": "CSS3", 
-            "scripting": "Vanilla JavaScript ES6+",
-            "forbidden": "NO external frameworks or libraries"
-        })
-        frontend_data.setdefault("code_requirements", ["Clean, working code optimized for performance", "Descriptive names and structure", "Immediately executable code"])
-        frontend_data.setdefault("core_deliverables", ["HTML structure", "API integration", "User workflows"])
-        frontend_data.setdefault("constraints", ["NO backend development", "NO server logic", "NO database operations"])
-        
-        frontend_prompt = FrontendPrompt(**frontend_data)
-        
-        if project_type == "frontend_only":
-            return ManagerOutput(
-                project_type=project_type,
-                frontend_engineer_prompt=frontend_prompt
-            )
-        else:
-            backend_data = data.get("backend_engineer_prompt", {})
-            # Ensure all required fields are present for backend
-            backend_data.setdefault("role", "Backend Engineer - Server-side Development Specialist")
-            backend_data.setdefault("domain_description", "Responsible for server-side development, API design, database models, business logic, authentication, and server configuration")
-            backend_data.setdefault("project_context", user_prompt)
-            backend_data.setdefault("required_technologies", {
-                "programming_language": "Python",
-                "web_framework": "FastAPI",
-                "data_processing": "PySpark (NOT pandas)",
-                "database_orm": "SQLAlchemy",
-                "dependency_management": "Python Poetry"
-            })
-            backend_data.setdefault("code_requirements", ["Clean, working code optimized for performance", "Type hints and meaningful comments", "Immediately executable code"])
-            backend_data.setdefault("core_deliverables", ["FastAPI structure", "SQLAlchemy models", "CRUD endpoints"])
-            backend_data.setdefault("integration_requirements", ["Frontend communication protocols", "API specifications"])
-            backend_data.setdefault("constraints", ["NO frontend development", "NO UI/UX work", "NO client-side code"])
-            
-            backend_prompt = BackendPrompt(**backend_data)
-            return ManagerOutput(
-                project_type=project_type,
-                backend_engineer_prompt=backend_prompt,
-                frontend_engineer_prompt=frontend_prompt
-            )
-            
-    except Exception as e:
-        print(f"Error in manager: {e}")
-        # Fallback to frontend-only for simple apps
-        frontend_prompt = FrontendPrompt(
-            role="Frontend Engineer - Client-side Development Specialist",
-            domain_description="Responsible for client-side development, UI implementation, API consumption, user experience flows, and browser-side functionality",
-            project_context=user_prompt,
-            required_technologies={
-                "markup": "HTML5",
-                "styling": "CSS3",
-                "scripting": "Vanilla JavaScript ES6+",
-                "forbidden": "NO external frameworks or libraries"
-            },
-            code_requirements=["Clean, working code optimized for performance", "Descriptive names and structure", "Immediately executable code"],
-            core_deliverables=["HTML structure", "API integration", "User workflows"],
-            api_integration_requirements=[],
-            constraints=["NO backend development", "NO server logic", "NO database operations"]
-        )
-        
+    project_type = data.get("project_type", "full_stack")
+    
+    # Handle frontend prompt with proper defaults
+    frontend_data = data["frontend_engineer_prompt"]
+    if frontend_data.get("api_integration_requirements") is None:
+        frontend_data["api_integration_requirements"] = []
+    frontend_prompt = FrontendPrompt(**frontend_data)
+    
+    if project_type == "frontend_only":
         return ManagerOutput(
-            project_type="frontend_only",
+            project_type=project_type,
+            frontend_engineer_prompt=frontend_prompt
+        )
+    else:
+        backend_prompt = BackendPrompt(**data["backend_engineer_prompt"])
+        return ManagerOutput(
+            project_type=project_type,
+            backend_engineer_prompt=backend_prompt,
             frontend_engineer_prompt=frontend_prompt
         )

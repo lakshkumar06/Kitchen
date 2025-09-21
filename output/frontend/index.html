@@ -1,0 +1,22 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Cookie Store</title><style>* {box-sizing: border-box;font-family: sans-serif;}body {margin: 0;padding: 20px;background-color: #f4f4f4;display: flex;flex-direction: column;align-items: center;min-height: 100vh;}h1 {color: #333;}#cookie-list {display: grid;grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));gap: 20px;}.cookie-item {border: 1px solid #ddd;padding: 15px;background-color: #fff;border-radius: 5px;box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);text-align: center;}.cookie-image {width: 100px;height: 100px;object-fit: cover;margin-bottom: 10px;border-radius: 50%;}.cookie-name {font-weight: bold;margin-bottom: 5px;}.cookie-description {font-size: 0.9em;margin-bottom: 10px;}.add-to-cart-btn {background-color: #4CAF50;color: white;padding: 8px 15px;border: none;border-radius: 5px;cursor: pointer;transition: background-color 0.3s ease;}#cart {margin-top: 30px;border: 1px solid #ddd;padding: 20px;background-color: #fff;border-radius: 5px;box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);}.cart-item {display: flex;justify-content: space-between;align-items: center;margin-bottom: 10px;}.cart-item-name {font-weight: bold;}.remove-from-cart-btn {background-color: #f44336;color: white;padding: 5px 10px;border: none;border-radius: 5px;cursor: pointer;transition: background-color 0.3s ease;}</style></head><body><h1>Our Delicious Cookies</h1><div id="cookie-list"></div><div id="cart"><h2>Your Cart</h2><ul id="cart-items"></ul><p>Total: $<span id="cart-total">0.00</span></p></div><script>const cookies = [
+  { name: "Chocolate Chip", description: "Classic chocolate chip cookie.", image: "https://via.placeholder.com/150", price: 2.50 },
+  { name: "Oatmeal Raisin", description: "Chewy oatmeal raisin cookie.", image: "https://via.placeholder.com/150", price: 2.00 },
+  { name: "Peanut Butter", description: "Soft and creamy peanut butter cookie.", image: "https://via.placeholder.com/150", price: 2.75 },
+];
+const cookieList = document.getElementById('cookie-list');
+const cartItems = document.getElementById('cart-items');
+const cartTotal = document.getElementById('cart-total');
+let cart = [];
+function renderCookies() {cookies.forEach(cookie => {const cookieElement = document.createElement('div');cookieElement.classList.add('cookie-item');cookieElement.innerHTML = `
+        <img src="${cookie.image}" alt="${cookie.name}" class="cookie-image">
+        <h3 class="cookie-name">${cookie.name}</h3>
+        <p class="cookie-description">${cookie.description}</p>
+        <button class="add-to-cart-btn" data-cookie-name="${cookie.name}">Add to Cart</button>
+      `;cookieList.appendChild(cookieElement);const addToCartBtn = cookieElement.querySelector('.add-to-cart-btn');addToCartBtn.addEventListener('click', () => {addToCart(cookie);});});}
+function addToCart(cookie) {cart.push(cookie);renderCart();}
+function removeFromCart(index) {cart.splice(index, 1);renderCart();}
+function renderCart() {cartItems.innerHTML = '';let total = 0;cart.forEach((cookie, index) => {const cartItem = document.createElement('li');cartItem.classList.add('cart-item');cartItem.innerHTML = `
+        <span class="cart-item-name">${cookie.name}</span>
+        <button class="remove-from-cart-btn" data-index="${index}">Remove</button>
+      `;cartItems.appendChild(cartItem);total += cookie.price;const removeBtn = cartItem.querySelector('.remove-from-cart-btn');removeBtn.addEventListener('click', () => {removeFromCart(index);});});cartTotal.textContent = total.toFixed(2);}
+renderCookies();renderCart();</script></body></html>

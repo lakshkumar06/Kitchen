@@ -476,52 +476,24 @@ def ask_repeat():
 
 @app.route('/api/complete-voice-flow', methods=['POST'])
 def complete_voice_flow():
-    """Complete voice flow with enhanced coding integration"""
+    """Complete voice flow exactly as specified"""
     try:
         # Import the brainstorm_session function from brainstorming.py
         from brainstorming import brainstorm_session
         
-        # Run the complete brainstorm session with coding flow
-        # This will handle the entire flow including website generation
+        # Run the complete brainstorm session
+        # This will handle the entire flow as specified
         brainstorm_session()
         
-        # Since brainstorm_session now triggers coding, we'll return a success message
+        # Since brainstorm_session doesn't return data, we'll return a success message
         return jsonify({
             'success': True,
             'flow_complete': True,
-            'coding_triggered': True,
-            'message': 'Voice flow and website coding completed successfully. Check console and output folder for results.'
+            'message': 'Voice flow completed successfully. Check console for results.'
         })
             
     except Exception as e:
         print(f"Error in complete voice flow: {e}")
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/trigger-coding', methods=['POST'])
-def trigger_coding():
-    """Trigger coding flow directly from an idea"""
-    try:
-        data = request.get_json()
-        idea = data.get('idea', '')
-        
-        if not idea:
-            return jsonify({'error': 'Idea is required'}), 400
-        
-        # Import the trigger_coding_flow function
-        from brainstorming import trigger_coding_flow
-        
-        # Trigger the coding flow
-        trigger_coding_flow(idea)
-        
-        return jsonify({
-            'success': True,
-            'coding_triggered': True,
-            'message': 'Website coding has been initiated. Check console and output folder for results.',
-            'idea': idea
-        })
-        
-    except Exception as e:
-        print(f"Error triggering coding flow: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ import os
 from orchestrator.models import BackendPrompt
 
 
-async def generate_backend_code(backend_prompt: BackendPrompt) -> dict:
+async def generate_backend(backend_prompt: BackendPrompt) -> None:
     """Generate backend code from backend prompt using LLM"""
     os.makedirs("output/backend", exist_ok=True)
     
@@ -83,11 +83,3 @@ class BaseModel(Base):
     
     with open("output/backend/models.py", "w") as f:
         f.write(models_code)
-    
-    return {
-        "success": True,
-        "main_file": "output/backend/main.py",
-        "models_file": "output/backend/models.py",
-        "main_code": main_code,
-        "models_code": models_code
-    }
