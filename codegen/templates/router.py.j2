@@ -1,0 +1,62 @@
+"""API routers for {{ project_name }}"""
+
+from typing import List
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from . import models, schemas
+from .db import get_db
+
+router = APIRouter()
+
+{% for entity in entities %}
+# {{ entity.name }} endpoints
+@router.get("/{{ entity.name.lower() }}s", response_model=List[schemas.{{ entity.name }}])
+def get_{{ entity.name.lower() }}s(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """Get all {{ entity.name.lower() }}s"""
+    {{ entity.name.lower() }}s = db.query(models.{{ entity.name }}).offset(skip).limit(limit).all()
+    return {{ entity.name.lower() }}s
+
+@router.get("/{{ entity.name.lower() }}s/{item_id}", response_model=schemas.{{ entity.name }})
+def get_{{ entity.name.lower() }}(item_id: int, db: Session = Depends(get_db)):
+    """Get {{ entity.name.lower() }} by ID"""
+    {{ entity.name.lower() }} = db.query(models.{{ entity.name }}).filter(models.{{ entity.name }}.id == item_id).first()
+    if {{ entity.name.lower() }} is None:
+        raise HTTPException(status_code=404, detail="{{ entity.name }} not found")
+    return {{ entity.name.lower() }}
+
+@router.post("/{{ entity.name.lower() }}s", response_model=schemas.{{ entity.name }})
+def create_{{ entity.name.lower() }}({{ entity.name.lower() }}: schemas.{{ entity.name }}Create, db: Session = Depends(get_db)):
+    """Create new {{ entity.name.lower() }}"""
+    db_{{ entity.name.lower() }} = models.{{ entity.name }}(**{{ entity.name.lower() }}.dict())
+    db.add(db_{{ entity.name.lower() }})
+    db.commit()
+    db.refresh(db_{{ entity.name.lower() }})
+    return db_{{ entity.name.lower() }}
+
+@router.put("/{{ entity.name.lower() }}s/{item_id}", response_model=schemas.{{ entity.name }})
+def update_{{ entity.name.lower() }}(item_id: int, {{ entity.name.lower() }}: schemas.{{ entity.name }}Update, db: Session = Depends(get_db)):
+    """Update {{ entity.name.lower() }}"""
+    db_{{ entity.name.lower() }} = db.query(models.{{ entity.name }}).filter(models.{{ entity.name }}.id == item_id).first()
+    if db_{{ entity.name.lower() }} is None:
+        raise HTTPException(status_code=404, detail="{{ entity.name }} not found")
+
+    update_data = {{ entity.name.lower() }}.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_{{ entity.name.lower() }}, field, value)
+
+    db.commit()
+    db.refresh(db_{{ entity.name.lower() }})
+    return db_{{ entity.name.lower() }}
+
+@router.delete("/{{ entity.name.lower() }}s/{item_id}")
+def delete_{{ entity.name.lower() }}(item_id: int, db: Session = Depends(get_db)):
+    """Delete {{ entity.name.lower() }}"""
+    db_{{ entity.name.lower() }} = db.query(models.{{ entity.name }}).filter(models.{{ entity.name }}.id == item_id).first()
+    if db_{{ entity.name.lower() }} is None:
+        raise HTTPException(status_code=404, detail="{{ entity.name }} not found")
+
+    db.delete(db_{{ entity.name.lower() }})
+    db.commit()
+    return {"message": "{{ entity.name }} deleted successfully"}
+
+{% endfor %}

@@ -1,0 +1,49 @@
+"""
+Seed script for {{ project_name }}
+"""
+
+from sqlalchemy.orm import Session
+from .db import SessionLocal, engine
+from . import models
+
+def seed_database():
+    """Seed the database with initial data"""
+    # Create tables
+    models.Base.metadata.create_all(bind=engine)
+
+    db = SessionLocal()
+    try:
+        {% for entity in entities %}
+        # Seed {{ entity.name }} data
+        if db.query(models.{{ entity.name }}).count() == 0:
+            sample_{{ entity.name.lower() }} = models.{{ entity.name }}(
+                {% for field_name, field_type in entity.fields.items() %}
+                {% if field_name != 'id' %}
+                {% if field_type == 'str' or field_type == 'string' %}
+                {{ field_name }}="Sample {{ field_name }}",
+                {% elif field_type == 'int' or field_type == 'integer' %}
+                {{ field_name }}=1,
+                {% elif field_type == 'bool' or field_type == 'boolean' %}
+                {{ field_name }}=True,
+                {% elif field_type == 'text' %}
+                {{ field_name }}="Sample {{ field_name }} text content",
+                {% else %}
+                {{ field_name }}="Sample {{ field_name }}",
+                {% endif %}
+                {% endif %}
+                {% endfor %}
+            )
+            db.add(sample_{{ entity.name.lower() }})
+
+        {% endfor %}
+        db.commit()
+        print("Database seeded successfully!")
+
+    except Exception as e:
+        print(f"Error seeding database: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+if __name__ == "__main__":
+    seed_database()

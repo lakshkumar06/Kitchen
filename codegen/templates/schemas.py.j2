@@ -1,0 +1,53 @@
+"""Pydantic schemas for API validation"""
+
+from datetime import datetime
+from typing import Optional
+from pydantic import BaseModel
+
+{% for entity in entities %}
+class {{ entity.name }}Base(BaseModel):
+    {% for field_name, field_type in entity.fields.items() %}
+    {% if field_name != 'id' %}
+    {% if field_type == 'str' or field_type == 'string' %}
+    {{ field_name }}: str
+    {% elif field_type == 'int' or field_type == 'integer' %}
+    {{ field_name }}: int
+    {% elif field_type == 'bool' or field_type == 'boolean' %}
+    {{ field_name }}: bool = False
+    {% elif field_type == 'text' %}
+    {{ field_name }}: str
+    {% else %}
+    {{ field_name }}: str
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+
+class {{ entity.name }}Create({{ entity.name }}Base):
+    pass
+
+class {{ entity.name }}Update({{ entity.name }}Base):
+    {% for field_name, field_type in entity.fields.items() %}
+    {% if field_name != 'id' %}
+    {% if field_type == 'str' or field_type == 'string' %}
+    {{ field_name }}: Optional[str] = None
+    {% elif field_type == 'int' or field_type == 'integer' %}
+    {{ field_name }}: Optional[int] = None
+    {% elif field_type == 'bool' or field_type == 'boolean' %}
+    {{ field_name }}: Optional[bool] = None
+    {% elif field_type == 'text' %}
+    {{ field_name }}: Optional[str] = None
+    {% else %}
+    {{ field_name }}: Optional[str] = None
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+
+class {{ entity.name }}({{ entity.name }}Base):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+{% endfor %}

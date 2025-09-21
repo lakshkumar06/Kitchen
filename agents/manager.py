@@ -2,7 +2,7 @@
 
 import json
 from ..orchestrator.models import ManagerOutput, BackendPrompt, FrontendPrompt
-from ..providers.gemini import gemini_client
+from ..providers.gemini import manager_client
 
 
 SYSTEM_PROMPT = """
@@ -68,7 +68,7 @@ async def generate_manager_output(user_prompt: str) -> ManagerOutput:
     """Generate manager output with backend and frontend prompts"""
     full_prompt = f"{SYSTEM_PROMPT}\n\nUser Request: {user_prompt}"
 
-    response = gemini_client.generate(full_prompt)
+    response = manager_client.generate(full_prompt)
     data = json.loads(response)
 
     backend_prompt = BackendPrompt(**data["backend_engineer_prompt"])

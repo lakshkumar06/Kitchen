@@ -1,0 +1,31 @@
+"""SQLAlchemy models"""
+
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
+from .db import Base
+
+{% for entity in entities %}
+class {{ entity.name }}(Base):
+    __tablename__ = "{{ entity.name.lower() }}s"
+
+    id = Column(Integer, primary_key=True, index=True)
+    {% for field_name, field_type in entity.fields.items() %}
+    {% if field_name != 'id' %}
+    {% if field_type == 'str' or field_type == 'string' %}
+    {{ field_name }} = Column(String(255), index=True)
+    {% elif field_type == 'int' or field_type == 'integer' %}
+    {{ field_name }} = Column(Integer)
+    {% elif field_type == 'bool' or field_type == 'boolean' %}
+    {{ field_name }} = Column(Boolean, default=False)
+    {% elif field_type == 'text' %}
+    {{ field_name }} = Column(Text)
+    {% else %}
+    {{ field_name }} = Column(String(255))
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+{% endfor %}

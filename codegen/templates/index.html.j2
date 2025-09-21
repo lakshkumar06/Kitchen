@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project_name }}</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <h1>{{ project_name }}</h1>
+            <ul class="nav-links">
+                {% for entity in entities %}
+                <li><a href="#{{ entity.name.lower() }}s">{{ entity.name }}s</a></li>
+                {% endfor %}
+            </ul>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="hero">
+            <h2>Welcome to {{ project_name }}</h2>
+            <p>Manage your data with this AI-generated application</p>
+        </section>
+
+        {% for entity in entities %}
+        <section id="{{ entity.name.lower() }}s" class="entity-section">
+            <h3>{{ entity.name }}s</h3>
+            <div class="actions">
+                <button class="btn btn-primary" onclick="showCreateForm('{{ entity.name.lower() }}')">
+                    Add New {{ entity.name }}
+                </button>
+            </div>
+            <div id="{{ entity.name.lower() }}-list" class="entity-list">
+                <!-- {{ entity.name }} list will be loaded here -->
+            </div>
+            <div id="{{ entity.name.lower() }}-form" class="form-container" style="display: none;">
+                <!-- {{ entity.name }} form will be loaded here -->
+            </div>
+        </section>
+        {% endfor %}
+    </main>
+
+    <script src="/static/js/api.js"></script>
+    <script>
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            {% for entity in entities %}
+            load{{ entity.name }}List();
+            {% endfor %}
+        });
+    </script>
+</body>
+</html>

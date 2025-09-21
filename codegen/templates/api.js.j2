@@ -1,0 +1,166 @@
+/* {{ project_name }} API Client */
+
+class API {
+    constructor() {
+        this.baseURL = '/api';
+    }
+
+    async request(endpoint, options = {}) {
+        const url = `${this.baseURL}${endpoint}`;
+        const config = {
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            ...options,
+        };
+
+        try {
+            const response = await fetch(url, config);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
+        }
+    }
+
+    // Generic CRUD operations
+    async getAll(resource) {
+        return this.request(`/${resource}`);
+    }
+
+    async getById(resource, id) {
+        return this.request(`/${resource}/${id}`);
+    }
+
+    async create(resource, data) {
+        return this.request(`/${resource}`, {
+            method: 'POST',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async update(resource, id, data) {
+        return this.request(`/${resource}/${id}`, {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
+
+    async delete(resource, id) {
+        return this.request(`/${resource}/${id}`, {
+            method: 'DELETE',
+        });
+    }
+}
+
+// Initialize API client
+const api = new API();
+
+{% for entity in entities %}
+// {{ entity.name }} specific functions
+async function load{{ entity.name }}List() {
+    try {
+        const {{ entity.name.lower() }}s = await api.getAll('{{ entity.name.lower() }}s');
+        render{{ entity.name }}List({{ entity.name.lower() }}s);
+    } catch (error) {
+        showError('Failed to load {{ entity.name.lower() }}s');
+    }
+}
+
+async function save{{ entity.name }}(event) {
+    event.preventDefault();
+    const form = event.target;
+    const formData = new FormData(form);
+    const data = {};
+
+    // Convert form data to object
+    {% for field_name, field_type in entity.fields.items() %}
+    {% if field_name != 'id' %}
+    {% if field_type == 'bool' or field_type == 'boolean' %}
+    data.{{ field_name }} = formData.get('{{ field_name }}') === 'on';
+    {% elif field_type == 'int' or field_type == 'integer' %}
+    data.{{ field_name }} = parseInt(formData.get('{{ field_name }}'));
+    {% else %}
+    data.{{ field_name }} = formData.get('{{ field_name }}');
+    {% endif %}
+    {% endif %}
+    {% endfor %}
+
+    try {
+        const id = formData.get('id');
+        if (id) {
+            await api.update('{{ entity.name.lower() }}s', id, data);
+            showSuccess('{{ entity.name }} updated successfully');
+        } else {
+            await api.create('{{ entity.name.lower() }}s', data);
+            showSuccess('{{ entity.name }} created successfully');
+        }
+
+        hideForm('{{ entity.name.lower() }}');
+        await load{{ entity.name }}List();
+    } catch (error) {
+        showError('Failed to save {{ entity.name.lower() }}');
+    }
+}
+
+async function edit{{ entity.name }}(id) {
+    try {
+        const {{ entity.name.lower() }} = await api.getById('{{ entity.name.lower() }}s', id);
+        show{{ entity.name }}EditForm({{ entity.name.lower() }});
+    } catch (error) {
+        showError('Failed to load {{ entity.name.lower() }}');
+    }
+}
+
+async function delete{{ entity.name }}(id) {
+    if (!confirm('Are you sure you want to delete this {{ entity.name.lower() }}?')) {
+        return;
+    }
+
+    try {
+        await api.delete('{{ entity.name.lower() }}s', id);
+        showSuccess('{{ entity.name }} deleted successfully');
+        await load{{ entity.name }}List();
+    } catch (error) {
+        showError('Failed to delete {{ entity.name.lower() }}');
+    }
+}
+
+{% endfor %}
+
+// Utility functions
+function showCreateForm(entityType) {
+    const formContainer = document.getElementById(`${entityType}-form`);
+    if (formContainer) {
+        formContainer.style.display = 'block';
+        // Call entity-specific show function
+        if (window[`show${entityType.charAt(0).toUpperCase() + entityType.slice(1)}CreateForm`]) {
+            window[`show${entityType.charAt(0).toUpperCase() + entityType.slice(1)}CreateForm`]();
+        }
+    }
+}
+
+function hideForm(entityType) {
+    const formContainer = document.getElementById(`${entityType}-form`);
+    if (formContainer) {
+        formContainer.style.display = 'none';
+    }
+}
+
+function showSuccess(message) {
+    // Simple notification - can be enhanced with a proper notification system
+    alert(`Success: ${message}`);
+}
+
+function showError(message) {
+    // Simple notification - can be enhanced with a proper notification system
+    alert(`Error: ${message}`);
+}
+
+// Initialize application
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('{{ project_name }} API client initialized');
+});
