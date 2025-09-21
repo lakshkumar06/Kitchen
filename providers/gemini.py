@@ -21,8 +21,17 @@ class GeminiClient:
             headers={"x-goog-api-key": self.api_key},
             json=payload
         )
-
-        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        
+        response_data = response.json()
+        
+        # Handle potential errors
+        if "error" in response_data:
+            raise ValueError(f"Gemini API error: {response_data['error']}")
+        
+        if "candidates" not in response_data or not response_data["candidates"]:
+            raise ValueError("No candidates in Gemini API response")
+        
+        return response_data["candidates"][0]["content"]["parts"][0]["text"]
 
 
 gemini_client = GeminiClient()
