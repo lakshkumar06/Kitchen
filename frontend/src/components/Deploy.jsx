@@ -60,17 +60,16 @@ function Deploy({ onComplete, projectData }) {
     setDeploymentStatus('deploying');
     
     const steps = [
-      { message: 'Initializing deployment...', delay: 1000 },
-      { message: 'Installing dependencies...', delay: 2000 },
-      { message: 'Building application...', delay: 3000 },
-      { message: 'Running tests...', delay: 1500 },
-      { message: 'Uploading files...', delay: 2000 },
-      { message: 'Configuring environment...', delay: 1000 },
-      { message: 'Deployment successful! 🎉', delay: 500 }
+      { message: 'Initializing deployment...' },
+      { message: 'Installing dependencies...' },
+      { message: 'Building application...' },
+      { message: 'Running tests...' },
+      { message: 'Uploading files...' },
+      { message: 'Configuring environment...' },
+      { message: 'Deployment successful! 🎉' }
     ];
 
     for (const step of steps) {
-      await new Promise(resolve => setTimeout(resolve, step.delay));
       addLog(step.message, step.message.includes('successful') ? 'success' : 'info');
     }
 

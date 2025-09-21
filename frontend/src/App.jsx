@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Brainstorm from './components/Brainstorm';
 import Code from './components/Code';
-import Debug from './components/Debug';
 import Review from './components/Review';
 import Deploy from './components/Deploy';
 import CodePanel from './components/CodePanel';
@@ -9,7 +8,6 @@ import CodePanel from './components/CodePanel';
 const WORKFLOW_STEPS = {
   BRAINSTORM: 'brainstorm',
   CODE: 'code',
-  DEBUG: 'debug',
   REVIEW: 'review',
   DEPLOY: 'deploy'
 };
@@ -64,8 +62,6 @@ function App() {
         return <Brainstorm onComplete={handleStepComplete} projectData={projectData} />;
       case WORKFLOW_STEPS.CODE:
         return <Code onComplete={handleStepComplete} projectData={projectData} />;
-      case WORKFLOW_STEPS.DEBUG:
-        return <Debug onComplete={handleStepComplete} projectData={projectData} />;
       case WORKFLOW_STEPS.REVIEW:
         return <Review onComplete={handleStepComplete} projectData={projectData} />;
       case WORKFLOW_STEPS.DEPLOY:

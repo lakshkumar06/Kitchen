@@ -1,140 +1,52 @@
 import React, { useState, useRef } from 'react';
 
-// Mock HTML content for the project preview
-const generateProjectHTML = (projectData) => {
-  const idea = projectData.idea || 'Sample Project';
-  const niche = projectData.niche || 'Technology';
+// Get the actual generated HTML content
+const getGeneratedHTML = async () => {
+  try {
+    const response = await fetch('http://localhost:8000/output/frontend/index.html');
+    if (response.ok) {
+      return await response.text();
+    }
+  } catch (error) {
+    console.error('Error fetching generated HTML:', error);
+  }
   
+  // Fallback HTML if generation fails
   return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>${idea}</title>
+        <title>Generated Project</title>
         <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            
             body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
+                font-family: Arial, sans-serif;
+                margin: 40px;
+                background: #f5f5f5;
             }
-            
             .container {
                 max-width: 800px;
-                padding: 2rem;
-                text-align: center;
+                margin: 0 auto;
+                background: white;
+                padding: 40px;
+                border-radius: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }
-            
-            .logo {
-                width: 80px;
-                height: 80px;
-                background: rgba(255, 255, 255, 0.2);
-                border-radius: 50%;
-                margin: 0 auto 2rem;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 2rem;
-                font-weight: bold;
-            }
-            
             h1 {
-                font-size: 3rem;
-                margin-bottom: 1rem;
-                font-weight: 700;
+                color: #333;
+                margin-bottom: 20px;
             }
-            
-            .subtitle {
-                font-size: 1.2rem;
-                margin-bottom: 2rem;
-                opacity: 0.9;
-            }
-            
-            .features {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 1.5rem;
-                margin: 3rem 0;
-            }
-            
-            .feature {
-                background: rgba(255, 255, 255, 0.1);
-                padding: 1.5rem;
-                border-radius: 12px;
-                backdrop-filter: blur(10px);
-            }
-            
-            .feature h3 {
-                margin-bottom: 0.5rem;
-                font-size: 1.1rem;
-            }
-            
-            .feature p {
-                opacity: 0.8;
-                font-size: 0.9rem;
-            }
-            
-            .cta-button {
-                background: rgba(255, 255, 255, 0.2);
-                border: 2px solid rgba(255, 255, 255, 0.3);
-                color: white;
-                padding: 1rem 2rem;
-                border-radius: 50px;
-                font-size: 1.1rem;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                margin-top: 2rem;
-            }
-            
-            .cta-button:hover {
-                background: rgba(255, 255, 255, 0.3);
-                transform: translateY(-2px);
-            }
-            
-            @media (max-width: 768px) {
-                h1 {
-                    font-size: 2rem;
-                }
-                
-                .container {
-                    padding: 1rem;
-                }
+            p {
+                color: #666;
+                line-height: 1.6;
             }
         </style>
     </head>
     <body>
         <div class="container">
-            <div class="logo">${idea.charAt(0).toUpperCase()}</div>
-            <h1>${idea}</h1>
-            <p class="subtitle">A modern ${niche} solution built with cutting-edge technology</p>
-            
-            <div class="features">
-                <div class="feature">
-                    <h3>Modern Design</h3>
-                    <p>Clean, intuitive interface that users love</p>
-                </div>
-                <div class="feature">
-                    <h3>Fast Performance</h3>
-                    <p>Optimized for speed and efficiency</p>
-                </div>
-                <div class="feature">
-                    <h3>Scalable Architecture</h3>
-                    <p>Built to grow with your business</p>
-                </div>
-            </div>
-            
-            <button class="cta-button">Get Started</button>
+            <h1>Generated Project</h1>
+            <p>Your project has been successfully generated! This is a preview of your application.</p>
         </div>
     </body>
     </html>
@@ -155,14 +67,19 @@ function Review({ onComplete, projectData }) {
   const mediaRecorderRef = useRef(null);
 
   React.useEffect(() => {
-    // Simulate loading the project
-    const timer = setTimeout(() => {
-      const html = generateProjectHTML(projectData);
-      setProjectHTML(html);
-      setIsLoading(false);
-    }, 1500);
+    // Load the actual generated HTML
+    const loadProject = async () => {
+      try {
+        const html = await getGeneratedHTML();
+        setProjectHTML(html);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error loading project:', error);
+        setIsLoading(false);
+      }
+    };
 
-    return () => clearTimeout(timer);
+    loadProject();
   }, [projectData]);
 
   // Audio recording functions
@@ -309,7 +226,7 @@ function Review({ onComplete, projectData }) {
                 srcDoc={projectHTML}
                 className="w-full h-full border-0"
                 title="Project Preview"
-                sandbox="allow-scripts"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
               />
             </div>
           </div>

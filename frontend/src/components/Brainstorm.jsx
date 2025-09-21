@@ -344,8 +344,7 @@ function Brainstorm({ onComplete, projectData }) {
   // Backend-ready idea generation (with fallback)
   const generateIdeas = async (niche, subNiche, area) => {
     try {
-      // TODO: Replace with actual backend API endpoint
-      const response = await fetch('/api/generate-ideas', {
+      const response = await fetch('http://localhost:8000/api/generate-ideas', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -361,6 +360,7 @@ function Brainstorm({ onComplete, projectData }) {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('🤖 AI Generated Ideas:', data.ideas);
         return data.ideas || getStaticIdeas();
       } else {
         console.warn('Backend API not available, using static ideas');
@@ -372,20 +372,67 @@ function Brainstorm({ onComplete, projectData }) {
     }
   };
 
-  const handleIdeaSubmit = () => {
+  const handleIdeaSubmit = async () => {
     if (idea.trim() || recordingState.audioBlob) {
-      const formData = {
-        idea: idea.trim() || 'Audio Recording',
-        niche: 'Custom Idea',
-        subNiche: '',
-        specificArea: '',
-        audioBlob: recordingState.audioBlob,
-        audioUrl: recordingState.audioUrl
-      };
-      
-      console.log('🚀 Idea Submission:', formData);
-      
-      onComplete(formData);
+      try {
+        // Process the idea with AI first
+        const response = await fetch('http://localhost:8000/api/process-custom-idea', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            idea: idea.trim() || 'Audio Recording',
+            audioBlob: recordingState.audioBlob
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('🤖 AI Processed Idea:', data);
+          
+          const formData = {
+            idea: data.project_title || idea.trim() || 'Audio Recording',
+            niche: data.industry || 'Custom Idea',
+            subNiche: data.category || 'Custom Solution',
+            specificArea: data.analysis || idea.trim(),
+            audioBlob: recordingState.audioBlob,
+            audioUrl: recordingState.audioUrl,
+            aiAnalysis: data.analysis,
+            features: data.features
+          };
+          
+          console.log('🚀 AI-Enhanced Idea Submission:', formData);
+          onComplete(formData);
+        } else {
+          // Fallback if AI processing fails
+          const formData = {
+            idea: idea.trim() || 'Audio Recording',
+            niche: 'Custom Idea',
+            subNiche: '',
+            specificArea: '',
+            audioBlob: recordingState.audioBlob,
+            audioUrl: recordingState.audioUrl
+          };
+          
+          console.log('🚀 Fallback Idea Submission:', formData);
+          onComplete(formData);
+        }
+      } catch (error) {
+        console.warn('Error processing idea with AI:', error);
+        // Fallback submission
+        const formData = {
+          idea: idea.trim() || 'Audio Recording',
+          niche: 'Custom Idea',
+          subNiche: '',
+          specificArea: '',
+          audioBlob: recordingState.audioBlob,
+          audioUrl: recordingState.audioUrl
+        };
+        
+        console.log('🚀 Fallback Idea Submission:', formData);
+        onComplete(formData);
+      }
     }
   };
 

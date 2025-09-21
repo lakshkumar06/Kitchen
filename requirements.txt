@@ -1,0 +1,16 @@
+# Core dependencies
+fastapi==0.104.1
+uvicorn==0.24.0
+pydantic==2.5.0
+python-dotenv==1.0.1
+requests==2.31.0
+
+# Google AI
+google-generativeai==0.7.2
+
+# Database (optional)
+sqlalchemy==2.0.23
+alembic==1.13.0
+
+# CORS for frontend integration
+python-multipart==0.0.6
