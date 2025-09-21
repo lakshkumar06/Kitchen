@@ -1,0 +1,16 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link rel="stylesheet" href="/css/styles.css"><title>{{ page.entity }}s</title></head>
+<body>
+<h1>{{ page.entity }}s</h1>
+<a href="{{ page.path }}/new.html">New {{ page.entity }}</a>
+<table id="tbl"><thead><tr id="hdr"></tr></thead><tbody id="rows"></tbody></table>
+<script type="module">
+  import { getJSON } from "/js/api.js";
+  const hdr=document.getElementById("hdr"), rows=document.getElementById("rows");
+  const data = await getJSON("./api/{{ page.entity.lower() }}s/");
+  if (data.length){
+    Object.keys(data[0]).forEach(k => { if(k!=="id") hdr.innerHTML += `<th>${k}</th>`; });
+    rows.innerHTML = data.map(r => `<tr>${Object.entries(r).filter(([k])=>k!=="id").map(([_,v])=>`<td>${v??""}</td>`).join("")}</tr>`).join("");
+  }
+</script>
+</body></html>

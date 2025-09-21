@@ -1,0 +1,16 @@
+from pydantic import BaseModel
+from typing import Optional, Literal
+
+{% for ent in spec.entities %}
+class {{ent.name}}Create(BaseModel):
+  {% for f in ent.fields if not f.primary %}
+  {% if f.type == "enum" %}{{f.name}}: Literal[{{ f.values|map('repr')|join(', ') }}]{{ " = " + repr(f.default) if f.default else "" }}
+  {% elif f.type in ["int","float"] %}{{f.name}}: {{ "int" if f.type=="int" else "float" }}{{ "" if f.required else " | None = None" }}
+  {% elif f.type in ["bool"] %}{{f.name}}: bool{{ "" if f.required else " | None = None" }}
+  {% else %}{{f.name}}: str{{ "" if f.required else " | None = None" }}
+  {% endif %}
+  {% endfor %}
+
+class {{ent.name}}Read({{ent.name}}Create):
+  id: str | None = None
+{% endfor %}

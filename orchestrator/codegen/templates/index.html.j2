@@ -1,0 +1,12 @@
+<!doctype html><html><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/css/styles.css"><title>{{ spec.app.name }}</title>
+</head><body>
+<h1>{{ spec.app.name }}</h1>
+<nav>
+{% for p in spec.pages if p.type == "list" %}
+  <a href="{{ p.path }}/index.html">{{ p.entity }}s</a>
+{% endfor %}
+</nav>
+<p>Welcome! Choose a section.</p>
+</body></html>

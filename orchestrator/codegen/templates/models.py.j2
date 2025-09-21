@@ -1,0 +1,20 @@
+from sqlalchemy import Column, String, Text, Integer, Float, Boolean, Date, DateTime, Enum, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.sql import func
+import uuid
+from .db import Base
+
+{% for ent in spec.entities %}
+class {{ent.name}}(Base):
+    __tablename__ = "{{ent.name.lower()}}"
+    {% for f in ent.fields %}
+    {{f.name}} = Column(
+      {% if f.type == "uuid" %}UUID(as_uuid=True), primary_key={{"True" if f.primary else "False"}}, default=uuid.uuid4{% elif f.type=="string" %}String{% elif f.type=="text" %}Text{% elif f.type=="int"%}Integer{% elif f.type=="float"%}Float{% elif f.type=="bool"%}Boolean{% elif f.type=="date"%}Date{% elif f.type=="datetime"%}DateTime{% elif f.type=="enum"%}Enum({{f.values|map('repr')|join(', ')}}, name="{{ent.name.lower()}}_{{f.name}}"){% endif %},
+      {{ "nullable=False," if f.required else "" }}
+      {{ "server_default=func.now()," if f.default == "now" else "" }}
+    )
+    {% endfor %}
+    {% for r in ent.relations if r.type == "belongsTo" %}
+    {{r.via}} = Column(UUID(as_uuid=True), ForeignKey("{{r.target.lower()}}.id"), nullable=False)
+    {% endfor %}
+{% endfor %}
