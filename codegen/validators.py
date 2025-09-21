@@ -100,23 +100,60 @@ class SpecValidator:
         # parse the prompts more intelligently to extract entity information
         entities = []
 
-        # Look for entity mentions in deliverables
+        # Look for explicit entity mentions in deliverables (improved with system prompt constraints)
         backend_deliverables = backend_prompt.get('core_deliverables', [])
         for deliverable in backend_deliverables:
-            if 'model' in deliverable.lower() or 'entity' in deliverable.lower():
-                # Extract entity name (simplified)
-                words = deliverable.split()
-                for word in words:
-                    if word.isalpha() and word[0].isupper() and len(word) > 2:
-                        entities.append({
-                            'name': word,
-                            'fields': {
-                                'id': 'int',
-                                'name': 'str',
-                                'description': 'text'
-                            }
-                        })
-                        break
+            if 'model' in deliverable.lower() or 'sqlalchemy' in deliverable.lower():
+                # Extract entity names from parentheses (User, Product, Order)
+                import re
+                entity_matches = re.findall(r'\(([^)]+)\)', deliverable)
+                for match in entity_matches:
+                    entity_names = [name.strip() for name in match.split(',')]
+                    for entity_name in entity_names:
+                        entity_name = entity_name.strip()
+                        if entity_name and entity_name[0].isupper():
+                            # Add smart field mapping based on entity name
+                            fields = {'id': 'int'}
+
+                            # Entity-specific field patterns
+                            if entity_name.lower() in ['user', 'customer', 'client']:
+                                fields.update({
+                                    'username': 'str', 'email': 'str', 'first_name': 'str',
+                                    'last_name': 'str', 'is_active': 'bool'
+                                })
+                            elif entity_name.lower() in ['product', 'item', 'cake']:
+                                fields.update({
+                                    'name': 'str', 'description': 'text', 'price': 'float',
+                                    'category': 'str', 'in_stock': 'bool'
+                                })
+                            elif entity_name.lower() == 'order':
+                                fields.update({
+                                    'customer_name': 'str', 'total_amount': 'float',
+                                    'status': 'str', 'order_date': 'str'
+                                })
+                            elif entity_name.lower() in ['post', 'article', 'blog']:
+                                fields.update({
+                                    'title': 'str', 'content': 'text', 'author': 'str',
+                                    'published': 'bool', 'publish_date': 'str'
+                                })
+                            elif entity_name.lower() == 'task':
+                                fields.update({
+                                    'title': 'str', 'description': 'text', 'completed': 'bool',
+                                    'priority': 'str', 'due_date': 'str'
+                                })
+                            else:
+                                # Generic fields
+                                fields.update({
+                                    'name': 'str', 'description': 'text', 'status': 'str'
+                                })
+
+                            # Always add timestamps
+                            fields.update({'created_at': 'str', 'updated_at': 'str'})
+
+                            entities.append({
+                                'name': entity_name,
+                                'fields': fields
+                            })
 
         # If no entities found, create a default one
         if not entities:

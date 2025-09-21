@@ -17,6 +17,22 @@ class ProjectWriter:
 
     def generate_project(self, project_data: Dict[str, Any], output_dir: str = "OUTPUT_EXAMPLE") -> str:
         """Generate complete project from templates"""
+        # Validate all required templates exist before starting
+        required_templates = [
+            "db.py.j2", "models.py.j2", "schemas.py.j2", "router.py.j2",
+            "main.py.j2", "seed.py.j2", "index.html.j2", "list.html.j2",
+            "form.html.j2", "styles.css.j2", "api.js.j2", "Dockerfile.backend.j2"
+        ]
+
+        missing_templates = []
+        for template_name in required_templates:
+            template_path = self.templates_dir / template_name
+            if not template_path.exists():
+                missing_templates.append(str(template_path))
+
+        if missing_templates:
+            raise Exception(f"Missing required templates: {', '.join(missing_templates)}")
+
         project_path = Path(output_dir)
 
         # Clean and create project directory
@@ -156,8 +172,13 @@ Thumbs.db
             f.write(gitignore_content.strip())
 
     def _render_template(self, template_name: str, data: Dict[str, Any], output_path: Path):
-        """Render a template to a file"""
+        """Render a template to a file with proper error handling"""
         try:
+            # Check if template exists
+            template_path = self.templates_dir / template_name
+            if not template_path.exists():
+                raise FileNotFoundError(f"Template file not found: {template_path}")
+
             template = self.jinja_env.get_template(template_name)
             content = template.render(**data)
 
@@ -168,6 +189,8 @@ Thumbs.db
             with open(output_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
+        except FileNotFoundError as e:
+            raise Exception(f"Template missing: {str(e)}")
         except Exception as e:
             raise Exception(f"Failed to render template {template_name}: {str(e)}")
 

@@ -1,7 +1,7 @@
 """Gemini client"""
 
 import requests
-from .config import MANAGER_API_KEY, BACKEND_API_KEY, FRONTEND_API_KEY
+from providers.config import MANAGER_API_KEY, BACKEND_API_KEY, FRONTEND_API_KEY
 
 
 class ManagerClient:

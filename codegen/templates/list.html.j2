@@ -33,23 +33,22 @@ function render{{ entity.name }}List({{ entity.name.lower() }}s) {
 
     {{ entity.name.lower() }}s.forEach({{ entity.name.lower() }} => {
         const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${{{ entity.name.lower() }}.id}</td>
+        row.innerHTML =
+            '<td>' + {{ entity.name.lower() }}.id + '</td>' +
             {% for field_name, field_type in entity.fields.items() %}
             {% if field_name != 'id' %}
-            <td>${{{ entity.name.lower() }}.{{ field_name }}}</td>
+            '<td>' + {{ entity.name.lower() }}.{{ field_name }} + '</td>' +
             {% endif %}
             {% endfor %}
-            <td>${new Date({{ entity.name.lower() }}.created_at).toLocaleDateString()}</td>
-            <td>
-                <button class="btn btn-sm btn-secondary" onclick="edit{{ entity.name }}(${{{ entity.name.lower() }}.id})">
-                    Edit
-                </button>
-                <button class="btn btn-sm btn-danger" onclick="delete{{ entity.name }}(${{{ entity.name.lower() }}.id})">
-                    Delete
-                </button>
-            </td>
-        `;
+            '<td>' + new Date({{ entity.name.lower() }}.created_at).toLocaleDateString() + '</td>' +
+            '<td>' +
+                '<button class="btn btn-sm btn-secondary" onclick="edit{{ entity.name }}(' + {{ entity.name.lower() }}.id + ')">' +
+                    'Edit' +
+                '</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="delete{{ entity.name }}(' + {{ entity.name.lower() }}.id + ')">' +
+                    'Delete' +
+                '</button>' +
+            '</td>';
         tbody.appendChild(row);
     });
 }

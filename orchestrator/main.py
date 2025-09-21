@@ -2,12 +2,12 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from .models import BuildRequest
-from ..agents.manager import generate_manager_output
-from ..agents.backend import generate_backend_code
-from ..agents.frontend import generate_frontend_code
-from ..codegen.writer import project_writer
-from ..codegen.validators import spec_validator
+from orchestrator.models import BuildRequest
+from agents.manager import generate_manager_output
+from agents.backend import generate_backend_code
+from agents.frontend import generate_frontend_code
+from codegen.writer import project_writer
+from codegen.validators import spec_validator
 
 app = FastAPI(title="Kitchen Orchestrator")
 
@@ -33,7 +33,7 @@ async def build(request: BuildRequest):
 
         # Step 4: Validate project specifications
         project_data = {
-            "project_name": extract_project_name(manager_output.backend_engineer_prompt.project_context),
+            "project_name": "YourProject",
             "entities": backend_specs["entities"],
             "pages": frontend_specs["pages"],
             "components": frontend_specs["components"]
@@ -83,15 +83,3 @@ async def health_check():
     return {"status": "healthy", "service": "Kitchen Orchestrator"}
 
 
-def extract_project_name(project_context: str) -> str:
-    """Extract project name from context"""
-    # Simple extraction - look for common patterns
-    words = project_context.split()
-    for i, word in enumerate(words):
-        if word.lower() in ['build', 'create', 'develop', 'make'] and i + 1 < len(words):
-            next_word = words[i + 1]
-            if next_word[0].isupper():
-                return next_word
-
-    # Default fallback
-    return "GeneratedProject"

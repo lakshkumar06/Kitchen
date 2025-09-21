@@ -1,8 +1,8 @@
 """Backend agent: generates code from backend prompt"""
-
-from ..orchestrator.models import BackendPrompt
-from ..providers.gemini import backend_client
-from ..codegen.validators import spec_validator
+import json
+from orchestrator.models import BackendPrompt
+from providers.gemini import backend_client
+from codegen.validators import spec_validator
 
 
 async def generate_backend_code(backend_prompt: BackendPrompt, frontend_prompt) -> dict:
@@ -30,6 +30,16 @@ Current entities: {entities}
 Generate additional entities or enhance existing ones based on the project requirements.
 Return JSON with enhanced entity specifications including proper field types.
 
+CRITICAL FIELD TYPE CONSTRAINTS:
+- ONLY use these exact field types: str, int, float, bool, text
+- NEVER use: DateTime, String, Integer, Boolean, Text, Date, Time, decimal, timestamp
+- For timestamps use: str (not DateTime or timestamp)
+- For descriptions use: text (not Text)
+- For names use: str (not String)
+- For IDs use: int (not Integer)
+- For flags use: bool (not Boolean)
+- For money/prices use: float (not decimal)
+
 Format:
 {{
   "entities": [
@@ -46,7 +56,6 @@ Format:
     try:
         # Get AI-enhanced specifications
         ai_response = backend_client.generate(ai_prompt)
-        import json
         ai_data = json.loads(ai_response)
 
         # Merge AI suggestions with extracted entities

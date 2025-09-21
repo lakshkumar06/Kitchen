@@ -1,7 +1,7 @@
 """Frontend agent: generates code from frontend prompt"""
 
-from ..orchestrator.models import FrontendPrompt
-from ..providers.gemini import frontend_client
+from orchestrator.models import FrontendPrompt
+from providers.gemini import frontend_client
 
 
 async def generate_frontend_code(frontend_prompt: FrontendPrompt, entities: list) -> dict:

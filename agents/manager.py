@@ -1,8 +1,8 @@
 """Manager agent using the correct system prompt"""
 
 import json
-from ..orchestrator.models import ManagerOutput, BackendPrompt, FrontendPrompt
-from ..providers.gemini import manager_client
+from orchestrator.models import ManagerOutput, BackendPrompt, FrontendPrompt
+from providers.gemini import manager_client
 
 
 SYSTEM_PROMPT = """
@@ -29,7 +29,7 @@ OUTPUT FORMAT (JSON):
       "dependency_management": "Python Poetry"
     },
     "code_requirements": ["Clean, working code optimized for performance", "Type hints and meaningful comments", "Immediately executable code"],
-    "core_deliverables": ["FastAPI structure", "SQLAlchemy models", "CRUD endpoints"],
+    "core_deliverables": ["FastAPI structure", "SQLAlchemy models with explicit entity names (e.g., User, Product, Order)", "CRUD endpoints"],
     "integration_requirements": ["Frontend communication protocols", "API specifications"],
     "constraints": ["NO frontend development", "NO UI/UX work", "NO client-side code"]
   },
@@ -54,11 +54,33 @@ TECHNOLOGY CONSTRAINTS:
 - Backend: Python + FastAPI + SQLAlchemy + PySpark (NOT pandas) + Poetry
 - Frontend: HTML5 + CSS3 + Vanilla JavaScript ES6+ (NO frameworks)
 
+ENTITY NAMING REQUIREMENTS:
+- All database entities MUST be explicitly mentioned in core_deliverables using PascalCase
+- Entity names must be singular nouns (User, Product, Order, not Users, Products, Orders)
+- Use descriptive, domain-specific names (Cake for bakery, Post for blog, Task for todo app)
+- Always include at least 2-3 relevant entities for the project domain
+- Example patterns:
+  * E-commerce: "SQLAlchemy models (User, Product, Order, Category)"
+  * Blog: "SQLAlchemy models (User, Post, Comment, Category)"
+  * Bakery: "SQLAlchemy models (Cake, Order, Customer, Recipe)"
+  * Task Manager: "SQLAlchemy models (Task, User, Project, Category)"
+
+FIELD TYPE CONSTRAINTS:
+- ONLY use these exact field types: str, int, float, bool, text
+- NEVER use: DateTime, String, Integer, Boolean, Text, Date, Time
+- For timestamps use: str (not DateTime)
+- For descriptions use: text (not Text)
+- For names use: str (not String)
+- For IDs use: int (not Integer)
+- For flags use: bool (not Boolean)
+
 KEY PRINCIPLES:
 - Maintain strict domain separation
 - Focus on MVP features
 - Ensure executable code
 - Provide clear integration points
+- Maintain clear entity definitions
+- Always specify exact entity names in deliverables
 
 Return ONLY the JSON response matching the exact structure above.
 """
