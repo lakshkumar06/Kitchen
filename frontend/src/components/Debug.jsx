@@ -59,11 +59,25 @@ function Debug({ onComplete, projectData }) {
   const [isScanning, setIsScanning] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
   const [fixedCount, setFixedCount] = useState(0);
+  const [hasCompleted, setHasCompleted] = useState(false);
 
   useEffect(() => {
-    // Simulate code scanning
-    scanCode();
-  }, []);
+    // Only scan if we haven't completed yet
+    if (!hasCompleted) {
+      scanCode();
+    }
+  }, [hasCompleted]);
+
+  // Reset state when coming back from review
+  useEffect(() => {
+    if (projectData.reviewStatus === 'needs_changes') {
+      setTotalIssues(0);
+      setIsScanning(false);
+      setIsFixing(false);
+      setFixedCount(0);
+      setHasCompleted(false);
+    }
+  }, [projectData.reviewStatus]);
 
   // Auto-proceed when no issues are found
   useEffect(() => {
@@ -111,6 +125,7 @@ function Debug({ onComplete, projectData }) {
   };
 
   const handleContinue = () => {
+    setHasCompleted(true);
     onComplete({
       totalIssues: totalIssues,
       fixedCount: fixedCount,

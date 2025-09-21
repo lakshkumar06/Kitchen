@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as d3 from 'd3';
 
 // Mock data for niche questions
 const NICHE_DATA = {
@@ -154,6 +155,137 @@ function Brainstorm({ onComplete, projectData }) {
   const [generatedIdeas, setGeneratedIdeas] = useState([]);
   const [selectedIdea, setSelectedIdea] = useState(null);
   const [isLoadingIdeas, setIsLoadingIdeas] = useState(false);
+  
+  // Audio recording state
+  const [isAudioMode, setIsAudioMode] = useState(false);
+  const [recordingState, setRecordingState] = useState({
+    isRecording: false,
+    audioBlob: null,
+    audioUrl: null
+  });
+  const [animationLevel, setAnimationLevel] = useState(0);
+  
+  // Audio refs
+  const mediaRecorderRef = useRef(null);
+  const audioContextRef = useRef(null);
+  const analyserRef = useRef(null);
+  const dataArrayRef = useRef(null);
+  const sourceRef = useRef(null);
+
+  // Generate a dynamic blob shape with smooth curves
+  const generateBlobPath = (level) => {
+    const r = 60 + level * 0.4; // Base radius with deformation
+    const points = 10; // Number of control points
+    const angleStep = (Math.PI * 2) / points;
+    let pathData = [];
+
+    for (let i = 0; i < points; i++) {
+      const angle = i * angleStep;
+      const radius = r + Math.sin(i * 2 + level * 0.05) * 2; // Creates a wavy effect
+      const x = Math.cos(angle) * radius + 64; // Centering at 64,64
+      const y = Math.sin(angle) * radius + 64;
+      pathData.push([x, y]);
+    }
+
+    // Use d3.line to interpolate with cardinal curve (smooths out corners)
+    const lineGenerator = d3
+      .line()
+      .curve(d3.curveCatmullRomClosed) // Smooth curved shape
+      .x((d) => d[0])
+      .y((d) => d[1]);
+
+    const path = lineGenerator(pathData); // Returns the smooth SVG path
+    return path || ''; // Return empty string if path is null
+  };
+
+  // Audio analysis for blob animation
+  useEffect(() => {
+    if (recordingState.isRecording) {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 256;
+        dataArrayRef.current = new Uint8Array(analyserRef.current.frequencyBinCount);
+
+        sourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
+        sourceRef.current.connect(analyserRef.current);
+
+        const detectSound = () => {
+          if (analyserRef.current && dataArrayRef.current) {
+            analyserRef.current.getByteFrequencyData(dataArrayRef.current);
+            const volume = dataArrayRef.current.reduce((a, b) => a + b, 0) / dataArrayRef.current.length;
+            setAnimationLevel(volume * 1.5);
+            if (recordingState.isRecording) requestAnimationFrame(detectSound);
+          }
+        };
+        detectSound();
+      });
+    } else {
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+      if (sourceRef.current) {
+        sourceRef.current = null;
+      }
+    }
+  }, [recordingState.isRecording]);
+
+  // Audio recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const audioChunks = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        audioChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setRecordingState({
+          isRecording: false,
+          audioBlob: audioBlob,
+          audioUrl: audioUrl
+        });
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setRecordingState(prev => ({ ...prev, isRecording: true }));
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      alert('Could not access microphone. Please check permissions.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && recordingState.isRecording) {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const playRecording = () => {
+    if (recordingState.audioUrl) {
+      const audio = new Audio(recordingState.audioUrl);
+      audio.play();
+    }
+  };
+
+  const resetRecording = () => {
+    if (recordingState.audioUrl) {
+      URL.revokeObjectURL(recordingState.audioUrl);
+    }
+    setRecordingState({
+      isRecording: false,
+      audioBlob: null,
+      audioUrl: null
+    });
+    setAnimationLevel(0);
+  };
 
   // Static ideas (fallback when backend is not available)
   const getStaticIdeas = () => {
@@ -241,12 +373,14 @@ function Brainstorm({ onComplete, projectData }) {
   };
 
   const handleIdeaSubmit = () => {
-    if (idea.trim()) {
+    if (idea.trim() || recordingState.audioBlob) {
       const formData = {
-        idea: idea.trim(),
+        idea: idea.trim() || 'Audio Recording',
         niche: 'Custom Idea',
         subNiche: '',
-        specificArea: ''
+        specificArea: '',
+        audioBlob: recordingState.audioBlob,
+        audioUrl: recordingState.audioUrl
       };
       
       console.log('🚀 Idea Submission:', formData);
@@ -359,7 +493,7 @@ function Brainstorm({ onComplete, projectData }) {
             setSelectedArea('');
             setIsLoadingIdeas(false);
           }}
-          className="px-6 py-2 bg-[#333333] hover:bg-[#444444] text-white rounded-[10px] transition-all"
+          className="px-6 py-2 bg-transparent border border-white hover:bg-white text-white hover:text-[#121212] rounded-[10px] transition-all"
         >
           Back to Selection
         </button>
@@ -374,22 +508,111 @@ function Brainstorm({ onComplete, projectData }) {
       </div>
       
       <div className="max-w-2xl mx-auto">
-        <textarea
-          value={idea}
-          onChange={(e) => setIdea(e.target.value)}
-          placeholder="Describe your idea... What problem are you solving? Who is your target audience? What makes your solution unique?"
-          className="w-full h-32 px-4 py-3 bg-[#222222] border border-[#444444] rounded-[10px] text-white placeholder-[#666666] focus:outline-none focus:ring-2 focus:ring-blue-500  resize-none"
-        />
-        
-        <div className="mt-4 flex justify-center">
+        {/* Audio Mode Toggle */}
+        <div className="flex justify-center mb-4">
           <button
-            onClick={handleIdeaSubmit}
-            disabled={!idea.trim()}
-            className="px-8 py-3 bg-white hover:bg-[#f0f0f0] disabled:bg-[#444444] text-[#121212] disabled:text-[#888888]  rounded-[10px] transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+            onClick={() => {
+              setIsAudioMode(!isAudioMode);
+              if (!isAudioMode) {
+                startRecording();
+              }
+            }}
+            className={`px-6 py-3 rounded-[10px] transition-all ${
+              isAudioMode 
+                ? 'bg-white text-[#121212]' 
+                : 'bg-transparent border border-white text-white hover:bg-white hover:text-[#121212]'
+            }`}
           >
-            Continue to Code
+            Audio Mode
           </button>
         </div>
+
+        {isAudioMode ? (
+          /* Audio Recording Interface */
+          <div className="space-y-6">
+            {recordingState.isRecording ? (
+              <div className="flex flex-col items-center justify-center py-8">
+                <svg className='h-[120px] w-[120px] overflow-visible' viewBox="0 0 128 128">
+                  <defs>
+                    <linearGradient id="blobGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#FF6600" />
+                      <stop offset="100%" stopColor="#FFCC00" />
+                    </linearGradient>
+                  </defs>
+                  <path d={generateBlobPath(animationLevel)} fill="url(#blobGradient)" />
+                </svg>
+
+                <button
+                  onClick={stopRecording}
+                  className="mt-10 px-6 py-2 bg-transparent border border-white hover:bg-white text-white hover:text-[#121212] rounded-[10px] transition-all"
+                >
+                  Stop Recording
+                </button>
+              </div>
+            ) : recordingState.audioUrl ? (
+              /* Playback Interface */
+              <div className="flex flex-col items-center justify-center py-8">
+
+                <p className="text-white mb-14 text-center">
+                  Recording complete!
+                </p>
+                <div className="flex space-x-4">
+                  <button
+                    onClick={playRecording}
+                    className="px-6 py-2 bg-white hover:bg-[#f0f0f0] text-[#121212] rounded-[10px] transition-all"
+                  >
+                    Play
+                  </button>
+                  <button
+                    onClick={resetRecording}
+                    className="px-6 py-2 bg-transparent border border-white hover:bg-white text-white hover:text-[#121212] rounded-[10px] transition-all"
+                  >
+                    Record Again
+                  </button>
+                </div>
+                <div className="mt-6">
+                  <button
+                    onClick={handleIdeaSubmit}
+                    disabled={!recordingState.audioBlob}
+                    className="px-8 py-3 bg-white hover:bg-[#f0f0f0] disabled:bg-transparent disabled:border disabled:border-white disabled:text-white text-[#121212] rounded-[10px] transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+                  >
+                    Continue to Code
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Start Recording Interface - This should not show since recording starts automatically */
+              <div className="flex flex-col items-center justify-center py-8">
+                <div className="w-24 h-24 bg-transparent border border-white rounded-full flex items-center justify-center mb-4">
+                  <div className="w-8 h-8 bg-white rounded-full"></div>
+                </div>
+                <p className="text-white mb-4 text-center">
+                  Starting recording...
+                </p>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Text Input Interface */
+          <>
+            <textarea
+              value={idea}
+              onChange={(e) => setIdea(e.target.value)}
+              placeholder="Describe your idea... What problem are you solving? Who is your target audience? What makes your solution unique?"
+              className="w-full h-32 px-4 py-3 bg-[#222222] border border-[#444444] rounded-[10px] text-white placeholder-[#666666] focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+            />
+            
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={handleIdeaSubmit}
+                disabled={!idea.trim()}
+                className="px-8 py-3 bg-white hover:bg-[#f0f0f0] disabled:bg-transparent disabled:border disabled:border-white disabled:text-white text-[#121212] rounded-[10px] transition-all transform hover:scale-105 disabled:scale-100 disabled:cursor-not-allowed"
+              >
+                Continue to Code
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -412,10 +635,10 @@ function Brainstorm({ onComplete, projectData }) {
                 setSelectedSubNiche('');
                 setSelectedArea('');
               }}
-              className={`p-4 rounded-[10px]  transition-all ${
+              className={`p-4 rounded-[10px] border transition-all ${
                 selectedNiche === key
-                  ? 'bg-[#fff]  text-black'
-                  : 'bg-[#222222] border-[#444444] text-[#cccccc] hover:border-[#555555] hover:text-white'
+                  ? 'bg-white text-[#121212] border-white'
+                  : 'bg-transparent border-white text-white hover:bg-white hover:text-[#121212]'
               }`}
             >
               <div className="text-center">
@@ -439,10 +662,10 @@ function Brainstorm({ onComplete, projectData }) {
                   setSelectedSubNiche(key);
                   setSelectedArea('');
                 }}
-                className={`p-4 rounded-[10px]  transition-all ${
+                className={`p-4 rounded-[10px] border transition-all ${
                   selectedSubNiche === key
-                    ? 'bg-[#fff]  text-black'
-                    : 'bg-[#222222]  text-[#cccccc] hover:border-[#555555] hover:text-white'
+                    ? 'bg-white text-[#121212] border-white'
+                    : 'bg-transparent border-white text-white hover:bg-white hover:text-[#121212]'
                 }`}
               >
                 <div className="">{subNiche.name}</div>
@@ -461,10 +684,10 @@ function Brainstorm({ onComplete, projectData }) {
               <button
                 key={area}
                 onClick={() => setSelectedArea(area)}
-                className={`p-3 rounded-[10px]  transition-all ${
+                className={`p-3 rounded-[10px] border transition-all ${
                   selectedArea === area
-                    ? 'bg-[#fff] text-black'
-                    : 'bg-[#222222]  text-[#cccccc] hover:border-[#555555] hover:text-white'
+                    ? 'bg-white text-[#121212] border-white'
+                    : 'bg-transparent border-white text-white hover:bg-white hover:text-[#121212]'
                 }`}
               >
                 <div className="text-sm font-medium">{area}</div>
@@ -479,7 +702,7 @@ function Brainstorm({ onComplete, projectData }) {
         <div className="flex justify-center">
           <button
             onClick={handleNicheSelection}
-            className="px-8 py-3 bg-white hover:bg-[#f0f0f0] text-[#121212]  rounded-[10px] transition-all transform hover:scale-105"
+            className="px-8 py-3 bg-white hover:bg-[#f0f0f0] text-[#121212] rounded-[10px] transition-all transform hover:scale-105"
           >
             Continue to Code
           </button>
@@ -501,13 +724,13 @@ function Brainstorm({ onComplete, projectData }) {
           <div className="flex justify-center space-x-6">
             <button
               onClick={() => setHasIdea(true)}
-              className="px-8 py-4 bg-white hover:bg-[#f0f0f0] text-[#121212]  rounded-[10px] transition-all transform hover:scale-105"
+              className="px-8 py-4 bg-white hover:bg-[#f0f0f0] text-[#121212] rounded-[10px] transition-all transform hover:scale-105"
             >
               Yes, I have an idea!
             </button>
             <button
               onClick={() => setHasIdea(false)}
-              className="px-8 py-4 bg-[#333333] hover:bg-[#444444] text-white  rounded-[10px] transition-all transform hover:scale-105"
+              className="px-8 py-4 bg-transparent border border-white hover:bg-white text-white hover:text-[#121212] rounded-[10px] transition-all transform hover:scale-105"
             >
               Help me find one
             </button>

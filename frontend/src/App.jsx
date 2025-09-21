@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Brainstorm from './components/Brainstorm';
 import Code from './components/Code';
 import Debug from './components/Debug';
+import Review from './components/Review';
 import Deploy from './components/Deploy';
 import CodePanel from './components/CodePanel';
 
@@ -9,6 +10,7 @@ const WORKFLOW_STEPS = {
   BRAINSTORM: 'brainstorm',
   CODE: 'code',
   DEBUG: 'debug',
+  REVIEW: 'review',
   DEPLOY: 'deploy'
 };
 
@@ -27,6 +29,13 @@ function App() {
 
   const handleStepComplete = (stepData) => {
     setProjectData(prev => ({ ...prev, ...stepData }));
+    
+    // Handle special cases for step navigation
+    if (stepData.reviewStatus === 'needs_changes') {
+      // Go back to debug step
+      setCurrentStep(WORKFLOW_STEPS.DEBUG);
+      return;
+    }
     
     // Move to next step
     const stepOrder = Object.values(WORKFLOW_STEPS);
@@ -57,6 +66,8 @@ function App() {
         return <Code onComplete={handleStepComplete} projectData={projectData} />;
       case WORKFLOW_STEPS.DEBUG:
         return <Debug onComplete={handleStepComplete} projectData={projectData} />;
+      case WORKFLOW_STEPS.REVIEW:
+        return <Review onComplete={handleStepComplete} projectData={projectData} />;
       case WORKFLOW_STEPS.DEPLOY:
         return <Deploy onComplete={handleStepComplete} projectData={projectData} />;
       default:
@@ -93,7 +104,7 @@ function App() {
         }`}>
       {/* Steps Bar */}
       <div className="">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-4">
           <div className="flex items-center justify-center">
             {Object.entries(WORKFLOW_STEPS).map(([key, value], index) => {
               const isActive = currentStep === value;
@@ -128,7 +139,7 @@ function App() {
       </div>
 
           {/* Main Content */}
-          <main className="mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <main className="mx-auto px-4 sm:px-6 lg:px-8 py-4">
             {renderCurrentStep()}
           </main>
         </div>
