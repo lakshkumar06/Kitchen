@@ -15,7 +15,7 @@ class ProjectWriter:
         self.templates_dir = Path(templates_dir)
         self.jinja_env = Environment(loader=FileSystemLoader(str(self.templates_dir)))
 
-    def generate_project(self, project_data: Dict[str, Any], output_dir: str = "EXAMPLE_PROJECT") -> str:
+    def generate_project(self, project_data: Dict[str, Any], output_dir: str = "OUTPUT_EXAMPLE") -> str:
         """Generate complete project from templates"""
         project_path = Path(output_dir)
 
